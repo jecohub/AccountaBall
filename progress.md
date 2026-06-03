@@ -1,5 +1,14 @@
 # AccountaBall — Progress Notes
-_Last updated: 2026-06-03 (v3 code-complete; manual QA pending)_
+_Last updated: 2026-06-04 (v3 code-complete; under review)_
+
+---
+
+## 🔎 Review checkpoint — 2026-06-04
+
+User did a first review of the v3 build and **has concerns about some things
+(not yet specified)**. Details to come; user will **re-test on 2026-06-05** and
+then call out exactly what to change. Nothing actioned yet — do not assume the
+v3 UI/behavior is accepted until those notes land.
 
 ---
 
