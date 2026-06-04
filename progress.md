@@ -89,6 +89,11 @@ Test files: existing v3 suites + `TimelineRangeTests`, `SummarizeSessionParseTes
   `AI_PROVIDER=openrouter`). Includes the critical post-recovery capture-restart
   check.
 - **Security:** rotate the leaked v2 OpenRouter key at openrouter.ai (it's in git history before commit `9c4ddf3`)
-- **Residual prompt-tuning:** re-test classification accuracy with Ollama actually
-  running (findings #2/#3) — deferred until manual QA; not a code issue (Phase A
-  fixed the mis-scoring root cause)
+
+### Resolved
+- **Findings #2/#3 (prompt-tuning) — CLEARED.** The opt-in live suite
+  `make test-integration` (see `Tests/IntegrationTests/`) runs the real
+  `qwen2.5:7b` and confirms classification + excuse evaluation behave correctly
+  with Ollama running (aligned excuse → justified, on/off-task classified
+  correctly). 10/10 live tests pass. The earlier symptoms were the v3
+  error-mis-scoring root cause, fixed in Phase A.
