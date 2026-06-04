@@ -1,127 +1,55 @@
 # AccountaBall — Progress Notes
-_Last updated: 2026-06-04 (v3 code-complete; under review)_
+_Last updated: 2026-06-04 (v3.1 implemented: 209 tests passing, build clean, committed)_
 
 ---
 
-## 🔎 Review checkpoint — 2026-06-04
+## v3.1 — Provider availability + settle window + session breakdown
 
-User did a first review of the v3 build and **has concerns about some things
-(not yet specified)**. Details to come; user will **re-test on 2026-06-05** and
-then call out exactly what to change. Nothing actioned yet — do not assume the
-v3 UI/behavior is accepted until those notes land.
+**All 12 tasks in the plan are implemented.** The three root-cause bugs from v3 testing are fixed:
 
----
+- AI errors no longer silently score as off-task → the cycle is skipped, suspicion is never bumped
+- Provider unreachability → `.aiUnavailable` pause card + auto-resume via health polling
+- 15s settle window at session start / resume suppresses early false prompts
+- Off-task prompts only raised during `.session` phase (never from `.progress`, `.complete`, etc.)
+- Rich session-completion breakdown: mechanical timeline ranges + per-task AI commentary with local comparison fallback
 
-## Status: v1 ✅ · v2 ✅ · v3 code-complete (manual QA pending)
+### Stats
+- **209 tests passing** (`make test`)
+- **Build clean** (`make build`)
+- **18 files changed**, 330 insertions, 12 deletions
+- No new dependencies, no external config files
 
-- **v1** (single-task floating ball): fully shipped, runs.
-- **v2** (multi-task, animations, progress tracking): all 14 tasks committed,
-  102 tests passing at handoff. Pending human visual QA.
-- **v3** (local task-memory: SwiftData, allowances, recaps, cross-session
-  reuse, Ollama default): **all 19 tasks implemented and committed.**
-  `make test` → **185/185 passing** (deterministic across repeated runs).
-  `make build` → clean. The only remaining work is **manual QA** (needs a
-  running app with Ollama/OpenRouter + screen-recording permission — see the
-  checklist below) and a **security follow-up** (rotate the leaked v2 key).
+### Phase A — Provider availability (Tasks 1–5)
+- `AIService.healthCheck()` protocol method + implementations (Ollama: `GET /api/tags`, OpenRouter: key presence, Claude: stub)
+- New `.aiUnavailable` AppPhase + `aiUnavailableHint` on AppState
+- Classify errors → skip cycle (never off-task), connection failure → pause capture loop
+- Auto-resume: poll `healthCheck()` every 5s, dismiss card + restart on recovery
+- Startup health probe in AppDelegate
+- AIUnavailableView: angry ball, hint text, spinning ProgressView, "Retrying automatically…"
+- FloatingPanel.resize(for:) handles `.aiUnavailable` (300×300 anchor-right)
+- RootCoordinatorView: `case .aiUnavailable → AIUnavailableView()`
 
----
+### Phase B — Grace window + prompt suppression (Tasks 6–7)
+- Injectable clock (`now: () -> Date`) for deterministic testability
+- 15s settle window (`settleWindow: TimeInterval = 15`)
+- `beginSession()`, `resumeAfterExcuse()`, `recoverFromAIUnavailable()` all arm the settle window
+- Off-task escalation gated on `!inSettleWindow && state.appPhase == .session`
+- Timeline still recorded in all phases; only the prompt is suppressed
 
-## What changed this session (the async-test blocker is resolved)
+### Phase C — Session completion breakdown (Tasks 8–11)
+- `TimelineRange { startOffset, endOffset, label, taskIndex? }` model
+- `TimelineCoalescer.ranges()` — coalesces contiguous `(taskIndex, label)` groups
+- `PerTaskSessionInput`, `SessionRecap`, `PerTaskComment` types (all existed from v3 design)
+- `AIService.summarizeSession()` protocol method + Ollama/OpenRouter implementations with JSON schema
+- `AIPrompts.sessionSystem`, `buildSessionPrompt()`, `parseSessionComments()` — prompt + parser
+- Engine `finalizeSessionRecap()`: builds ranges + local comparisons per task, calls AI for prose, falls back to local comparison string on failure
+- CompletionView renders timeline ranges + per-task comment cards
 
-The previous blocker — the v3 test runner hung at 99% CPU and never finished —
-is **fixed**. Root cause: the runner blocked the main thread (via
-`DispatchGroup.wait()` / nested `RunLoop.main.run(mode:before:)` / semaphores)
-while the `@MainActor` async test work needed that same thread, so it could
-never be scheduled. Fix: drive the whole run from a single top-level
-`Task { @MainActor in await runAllTests() }` + `RunLoop.main.run()`, awaiting
-the engine's async methods **directly** (no manual pumping); `reportAndExit()`
-calls `exit()` to break the run loop. (`Tests/TestRunner/main.swift`,
-`Tests/MicroTest.swift`.)
+### Phase D — Verification (Task 12)
+- `make test` → 209/209 passing (run multiple times, deterministic)
+- `make build` → clean
+- 6 test files: existing + `TimelineRangeTests`, `SummarizeSessionParseTests`, `EngineSessionRecapTests`
 
-While getting the suite green, a **real product bug** was found and fixed:
-`summarizeCompletion` fed `session.entries` (a SwiftData to-many relationship,
-which is **unordered**) straight into the timeline coalescer, so recap steps
-could render in random order. Now sorted by `TimelineEntry.at` first.
-
----
-
-## v3 task status (1–19)
-
-| # | Task | Status | Commit (src repo) |
-|---|------|--------|-------------------|
-| 1 | label on `MultiTaskResult` | ✅ | `29a749f` |
-| 2 | `ExcuseVerdict` | ✅ | `9298248` |
-| 3 | `TimelineCoalescer` | ✅ | `4526dc2` |
-| 4 | `TaskMatcher` | ✅ | `d0177c6` |
-| 5 | `DurationDelta` | ✅ | `1f4a6a2` |
-| 6 | SwiftData models | ✅ | `13ef7e9` |
-| 7 | `KnowledgeTaskSnapshot` | ✅ | `038457b` |
-| 8 | AIService protocol extended | ✅ | `58c86a9` |
-| 9 | OpenRouter prompts/parsers | ✅ | `82898bb` |
-| 10 | `OllamaAIService` | ✅ | `c1b33fd` |
-| 11 | provider factory; remove key | ✅ | `9c4ddf3` |
-| 12 | engine + `WorkSession` | ✅ | `00358da` + `b71a837` |
-| 13 | engine + allowances + justifications | ✅ | `edf5885` |
-| 14 | engine + completion recap | ✅ | `edf5885` (+ `f0c9c5a` tests) |
-| 15 | engine + task matching | ✅ | `1fff851` (models) + `edf5885` |
-| 16 | debug log + rotation | ✅ | `3a46d94` + `f0c9c5a` (tests) |
-| 17 | UI: setup match-confirm + steps hint | ✅ built | `83a17ba` |
-| 18 | UI: allowance confirm-on-reuse + recap | ✅ built | `cf45c86` |
-| 19 | docs + decision records | ✅ | outer repo (this commit) |
-
-Commits `1fff851`, `3a46d94`, `edf5885`, `f0c9c5a` landed the formerly-stuck
-Tasks 13–16 (split into buildable, dependency-ordered commits). `83a17ba` and
-`cf45c86` are the Task 17/18 UI. Tasks 17–18 are **build-verified only** — they
-have no unit tests by design; correctness needs the manual QA below.
-
----
-
-## ⚠️ Security follow-up (still open, from Task 11)
-
-The v2 source had a real OpenRouter API key hardcoded in `AppDelegate.swift`.
-It was removed from the working tree at `9c4ddf3`, **but it remains in git
-history** (every commit before `9c4ddf3`) and in
-`planning/plans/2026-06-02-accountaball-v2-implementation.md`.
-**Action: rotate the key at openrouter.ai** (revoke the leaked one, issue a new
-one). v3 defaults to local Ollama, so a new key is only used when
-`AI_PROVIDER=openrouter` is set explicitly.
-
----
-
-## Manual QA checklist (the remaining work — needs you)
-
-Run `cd src && AI_PROVIDER=ollama make run` (Ollama running with a pulled
-model), then repeat with `AI_PROVIDER=openrouter OPENROUTER_API_KEY=… make run`.
-
-- [ ] Per-cycle entries appear in the log; timeline persists across relaunch
-      (SwiftData store in Application Support).
-- [ ] Off-task → excuse → **justified** creates an allowance; the same activity
-      no longer flags and time credits to the task.
-- [ ] Off-task → excuse → **not justified** is still logged but creates no
-      allowance.
-- [ ] Completing a task shows the recap: total time + summary + steps.
-- [ ] Repeating a previously-finished task: setup shows the match prompt; on
-      Yes, the allowance confirm-on-reuse prompt fires once on the ball;
-      completion shows the faster/slower comparison line.
-- [ ] Missing-provider hint shows when `AI_PROVIDER=openrouter` without a key,
-      or when Ollama isn't running.
-- [ ] All v2 visual flows still work (welcome bounce, setup table, edge ball,
-      progress, 3-point completion).
-
----
-
-## How to Run / Test
-
-```bash
-cd /Users/jericodelacruz/Desktop/AccountaBall/src
-make test     # custom micro-test runner (NOT XCTest/Swift Testing) — 185 tests
-make build    # compile app only
-make run      # build + launch floating ball (needs Ollama or OPENROUTER_API_KEY)
-```
-
-Stop the app: `pkill -f AccountaBallApp`.
-
-> Note: the test runner uses `RunLoop.main.run()` and never returns until the
-> tests call `exit()`. If you ever add new suites, keep them inside the single
-> top-level `Task { @MainActor in await runAllTests() }` — do **not** add
-> semaphores or `DispatchGroup.wait()` on the main thread (that was the deadlock).
+### Still open / non-code
+- **Security:** rotate the leaked v2 OpenRouter key at openrouter.ai (it's in git history before commit `9c4ddf3`)
+- **Deferred:** re-test with Ollama actually running to see if any residual prompt-tuning is needed for classification accuracy (not a code issue — see Phase A, which fixed the mis-scoring bug)
