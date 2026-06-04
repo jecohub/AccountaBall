@@ -84,14 +84,10 @@ Test files: existing v3 suites + `TimelineRangeTests`, `SummarizeSessionParseTes
 `TestFakes.swift`.
 
 ### Still open / non-code
-- **Manual QA not yet run** (needs a human with Screen Recording permission +
-  Ollama running, then repeat with `AI_PROVIDER=openrouter`). Checklist from the
-  plan's Task 12: Ollama-down launch shows the card and auto-resumes within ~5s
-  (and capture actually restarts — the critical fix above); no prompt in the
-  first 15s of a fresh session; session-log screen doesn't trigger "what are you
-  doing?"; an aligned excuse is accepted with Ollama running; completion shows
-  the timeline ranges + per-task comments with faster/slower-vs-last for a
-  repeated task.
+- **Manual QA not yet run** — checklist in [`v3.1-manual-qa.md`](v3.1-manual-qa.md)
+  (needs Screen Recording permission + Ollama running, then repeat with
+  `AI_PROVIDER=openrouter`). Includes the critical post-recovery capture-restart
+  check.
 - **Security:** rotate the leaked v2 OpenRouter key at openrouter.ai (it's in git history before commit `9c4ddf3`)
 - **Residual prompt-tuning:** re-test classification accuracy with Ollama actually
   running (findings #2/#3) — deferred until manual QA; not a code issue (Phase A
