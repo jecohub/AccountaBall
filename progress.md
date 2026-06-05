@@ -1,5 +1,39 @@
 # AccountaBall — Progress Notes
-_Last updated: 2026-06-04 (v3.1 implemented + multi-agent verified: 223 tests passing, build clean, committed)_
+_Last updated: 2026-06-05 (v3.1.1 post-QA bug fixes — all 7 fixed; code committed; manual QA pending)_
+
+---
+
+## v3.1.1 — Post-QA bug fixes (IN PROGRESS)
+
+First hands-on QA of v3.1 surfaced 7 real bugs. Root causes were traced from the
+code + the debug log (`~/Library/Application Support/AccountaBall/logs/accountaball.log`)
++ three screenshots. Status of each:
+
+| # | Symptom | Root cause | Fix | Status |
+|---|---|---|---|---|
+| 1 | Session completion shows **no breakdown** | `engine.beginSession()` **never called in production** (only `state.startSession()` was) → `engine.currentSession` always nil → `record()` / `finalizeSessionRecap()` / `summarizeCompletion()` all early-return. The whole v3 timeline/recap/history layer was dead in the real app. | Call `engine.beginSession(tasks:)` in `TaskSetupView.handleLetsGo()`; `endSession()` after the recap in the AppDelegate phase-watcher. | ✅ done (uncommitted) |
+| 2 | Completion shows **"Total time --:--"** | `completeTaskAt()` calls `endSession()` (nils `sessionStartTime`) before `.complete`. | Snapshot `AppState.lastSessionDuration` before `endSession()`; CompletionView reads it. | ✅ done |
+| 3 | **"AI unavailable" card flapped ~18×** with Ollama running | Capture loop treated a cancelled request (`-999 cancelled` — a normal lifecycle cancel) as a provider outage. | `AccountabilityEngine.isBenignCancellation()`; the loop skips cancellations instead of entering `.aiUnavailable`. | ✅ done |
+| 4 | **Session log half-transparent** (white desktop bleeds through) | Views used `Color.black.opacity(0.85)`, and `AccountaProgressView` placed it as a VStack **sibling** (not a backdrop). | Opaque `Color.black` everywhere; `AccountaProgressView` rebuilt as a ZStack with a backdrop layer. | ✅ done |
+| 5 | Task-match "you did this before" card **pushes buttons off-screen** | `.setup` panel fixed at 520×440; inline card overflows; panel sizes not clamped to the display. | Clamp all `FloatingPanel` sizes to the screen's visibleFrame; taller setup panel; rows now in a `ScrollView` with the "Let's go!" button pinned below it. | ✅ done |
+| 6 | App **unusable when launched with Ollama down** | `recoverFromAIUnavailable()` always jumped to `.session` even with no session started. | Remember `phaseBeforeUnavailable`; recovery returns there (`.welcome` on a fresh launch). | ✅ done |
+| 7 | Excuse could get **stuck**; no accepted/escape feedback | `handleExcuse` only resumed when the verdict had a `taskIndex`; the "accepted" stage was dead code, and after `handleExcuse` stopped flipping phase the justified path resumed nothing — the view froze. | `handleExcuse` no longer flips phase (resume moved to the view) + `resumeAfterExcuse(graceSeconds:)`. OffTaskView now shows an **accepted** stage (👍 "Carry on" → "Got it" resumes) and a **rejected** stage with "Back to it" + a **"Continue anyway"** escape hatch (resumes with a 120s grace via `AppConstants.continueAnywayGraceSeconds`). | ✅ done |
+
+**Product decision (excuse policy):** keep the model's honest judgment (the log
+shows it correctly rejecting "just checking linkedin" etc.) but add a "Continue
+anyway" escape hatch on rejection + clear accepted/rejected feedback.
+
+**All 7 bugs now fixed.** Verification (all green):
+- `make test` → **233/233** passing (added a grace-window suite asserting "Continue
+  anyway" suppresses past the default 15s settle but re-prompts after the 120s grace).
+- `make test-integration` → **10/10** live `qwen2.5:7b` tests passing.
+- `make build` → clean.
+
+**Still TODO before this is shippable:**
+- Run the human-eyes pass in `v3.1-manual-qa.md` (Screen Recording + Ollama, then
+  repeat with `AI_PROVIDER=openrouter`).
+- **Security:** rotate the leaked v2 OpenRouter key at openrouter.ai (in git history
+  before commit `9c4ddf3`).
 
 ---
 
