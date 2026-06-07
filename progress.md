@@ -1,5 +1,27 @@
 # AccountaBall — Progress Notes
-_Last updated: 2026-06-05 (v3.1.1 post-QA bug fixes — all 7 fixed; code committed; manual QA pending)_
+_Last updated: 2026-06-07 (v3.1.x QA fixes shipped; v3.2 3-state redesign brainstorm paused — design doc started)_
+
+---
+
+## v3.2 — 3-State Accountability Redesign (DESIGN IN PROGRESS — paused)
+
+Brainstorm of a bigger evolution: from a binary on/off nag into a calm "mirror"
+that classifies ON / AMBIGUOUS / OFF, makes drift conscious without shaming, and
+tracks a pre-committed drift limit toward an honor-system consequence (visible
+record + streak break).
+
+**Decided:** honor-system consequence; pre-commit = drift limit (default 3) +
+optional commitment line + cross-session streak; architecture B (model perceives
+3-state, Swift owns the deterministic engine); 3-phase rollout. Design Sections 1
+(data model) and 2 (per-cycle engine) approved.
+
+**Resume at:** Section 3 (prompts/UI + transparency log), Section 4 (commitment/
+threshold/streak + setup fields), Section 5 (testing). Full doc:
+[`planning/plans/2026-06-07-3state-accountability-design.md`](planning/plans/2026-06-07-3state-accountability-design.md).
+
+**Note:** this supersedes the earlier in-flight "is this related? + document in
+recap" request — that idea is folded into Phase 1 (AMBIGUOUS ask + transparency
+log). Nothing implemented yet.
 
 ---
 
