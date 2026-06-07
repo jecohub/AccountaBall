@@ -1,8 +1,12 @@
-# AccountaBall — 3-State Accountability Redesign (design, IN PROGRESS)
+# AccountaBall — 3-State Accountability Redesign (design)
 
-_Status: design APPROVED (Sections 1–4). Section 5 testing folds into the Phase 1
-implementation plan. Next step: build Phase 1 (the spine) so it can be felt.
-Nothing implemented yet._
+_Status: design APPROVED (Sections 1–4). **Phase 1 (the spine) is BUILT** —
+implemented task-by-task per `docs/plans/2026-06-07-3state-phase1.md` (16 tasks),
+two-stage reviewed, with a final holistic review. ~299 unit tests + a live Ollama
+3-state-bias integration test pass; `make -C src build` is clean. Code lives on
+`master` in the inner `src/` repo. Next: manual "feel it" run, then Phase 2
+(cross-session streak, optional commitment line, adaptive cadence consuming model
+confidence, suspicious-claim clustering)._
 
 This redesigns AccountaBall's core from a binary on/off nag into a calm
 "mirror" that classifies into three states, makes drift conscious without
