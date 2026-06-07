@@ -1,7 +1,8 @@
 # AccountaBall — 3-State Accountability Redesign (design, IN PROGRESS)
 
-_Status: brainstorm paused at Section 2 (approved). Sections 3–5 still to design.
-Resume with the `superpowers:brainstorming` flow. Nothing implemented yet._
+_Status: design APPROVED (Sections 1–4). Section 5 testing folds into the Phase 1
+implementation plan. Next step: build Phase 1 (the spine) so it can be felt.
+Nothing implemented yet._
 
 This redesigns AccountaBall's core from a binary on/off nag into a calm
 "mirror" that classifies into three states, makes drift conscious without
@@ -119,24 +120,85 @@ Each cycle the model returns a state; the engine acts deterministically:
 - **Only genuinely new state:** `askedActivities` (a Set, for "ask once") and the
   derived `DRIFT_COUNT` / `commitmentBroken`.
 
+## Design — Section 3: Prompts / UI + transparency log (APPROVED)
+
+Tone is "mirror, not boss" — calm, single-breath, no exclamation marks, no scold.
+
+**AMBIGUOUS ask** (raised once per activity):
+> Quick check — is this part of *{taskLabel}*? [ what's it for? ]
+> [ Yes, it's related ]  [ No, I drifted ]
+
+- "Yes" + reason → creates an **allowance**, logs the claim, never re-asks this
+  activity, resets the consecutive-off counter. Empty reason allowed (the moment
+  of consciousness matters, not the paperwork).
+- "No, I drifted" → converts to a confirmed OFF event (`DRIFT_COUNT++`), then
+  shows the break/resume choice.
+
+**OFF calm choice** (after 2 consecutive OFF reads):
+> You've drifted from *{taskLabel}*.
+> [ Take a timed 5-min break ]  [ Jump back in ]
+
+- **Drift counts on the fact of the OFF event**, not on which button is pressed
+  (locked) — the button only governs what happens next. "Break" starts a visible
+  countdown (ball quiet until it elapses); "Jump back in" → silent return.
+
+**Transparency log** (session-complete screen) — the payoff of the mirror.
+Source: this session's `JustificationEvent` rows (checks only, not every on-task
+read), time-ordered, `kind` picks icon + phrasing:
+```
+  Your checks
+  ◐ 0:12  Excel spreadsheet — you marked related: "budget for the deck"
+  ● 0:28  YouTube — you drifted · took a 5-min break
+  ● 0:41  Twitter — you drifted · jumped back in
+  ○ 0:33  no response, resumed watching        (auto-return)
+  Drift 2 of 3   ·   streak: 4 sessions  (Phase 2)
+```
+`◐` ambiguous-clarified, `●` confirmed drift, `○` auto-return (ignored 60s).
+Calm factual past tense, no red, no "failed." Bottom line surfaces
+`DRIFT_COUNT of limit` (the pre-commitment made visible); if the limit was hit,
+the broken-commitment record appears here (Section 4). Extends the existing
+session-complete summary; adds the checks panel above the task breakdown.
+
 ---
 
-## Still to design (resume here)
+## Design — Section 4: Commitment / threshold / streak + setup (APPROVED)
 
-- **Section 3 — Prompts / UI:** the AMBIGUOUS ask ("Quick check — is this part of
-  {task}? What's it for?"), the OFF calm choice ("drifted — timed 5-min break, or
-  jump back in?"), tone reframe of all copy, and the **transparency log** in the
-  session-complete screen (every check + the user's response documented, e.g.
-  "Excel spreadsheet — you marked related: '…'").
-- **Section 4 — Commitment / threshold / consequence + setup:** the setup fields
-  (drift limit default 3 + optional commitment line), the broken-commitment
-  record, and the cross-session streak model/persistence.
-- **Section 5 — Testing strategy:** deterministic engine tests (drift count,
-  threshold, ask-once dedupe, streak), parse tests for the AMBIGUOUS token, and
-  a live integration case for 3-state classification.
+**Setup screen** gains a small commitment block below the task table:
+- **Drift limit** — stepper, default `3`, range 1–10. This is `DRIFT_THRESHOLD`.
+  Editable *only at setup*; the in-the-moment user can never raise it (that
+  immovability is the whole mechanism). Persists to `UserDefaults`; **remembered
+  across sessions but always re-shown for re-confirmation** (see it, change it,
+  no retyping). Ships in **Phase 1**.
+- **Commitment line** — *optional* free text, **Phase 2**. Quoted back verbatim
+  when broken. Empty → neutral system phrasing.
 
-## Open questions for later
+**Broken-commitment record** (when `DRIFT_COUNT` reaches the limit): **no
+in-the-moment punishment** — the ball keeps offering the calm break/resume choice
+mid-session. The consequence lands only at session end, in the recap — factual,
+not cruel, but the one place copy is *not* softened (it's the loudest the app
+gets):
+```
+  ✕ Commitment broken — you set a limit of 3 drifts, you hit 4.
+  You committed to: "finish the deck before lunch"   (Phase 2)
+  Streak reset to 0 (was 4)                          (Phase 2)
+```
+Under the limit → quiet win + streak increments.
+
+**Streak (Phase 2 — the habit engine):** consecutive *sessions* finished
+at-or-under the drift limit (Seinfeld chain). **Per-session granularity** (not
+per-day). Persist a tiny singleton: `currentStreak`, `bestStreak`,
+`lastSessionEndedAt`. Increment on a clean session, reset to 0 on a broken one.
+Surfaced in the recap bottom line and small on the welcome screen for returning
+users (`🔥 4-session streak`).
+
+## Section 5 — Testing
+
+Folds into the Phase 1 implementation plan. Coverage: deterministic engine tests
+(derived drift count, threshold → commitmentBroken, ask-once dedupe), parse tests
+for the AMBIGUOUS token, and a live integration case for 3-state classification.
+
+## Open questions (deferred — do not block Phase 1)
 
 - Exact debounce for AMBIGUOUS (ask on first read vs. require persistence?).
 - Does an AMBIGUOUS claim that "doesn't hold up" increment DRIFT_COUNT (Phase 3)?
-- Streak granularity: per session vs. per day.
+- Minimum session length to count toward the streak (anti-padding, Phase 2).
