@@ -1,27 +1,48 @@
 # AccountaBall — Progress Notes
-_Last updated: 2026-06-07 (v3.1.x QA fixes shipped; v3.2 3-state redesign brainstorm paused — design doc started)_
+_Last updated: 2026-06-07 (v3.2 3-state redesign — Phase 1 BUILT; design fully approved)_
+
+> **How the whole app operates:** see [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md)
+> — the single end-to-end operational reference (lifecycle, monitoring loop,
+> 3-state model, drift engine, suppression mechanisms, data, providers, code map).
 
 ---
 
-## v3.2 — 3-State Accountability Redesign (DESIGN IN PROGRESS — paused)
+## v3.2 — 3-State Accountability Redesign (Phase 1 BUILT)
 
-Brainstorm of a bigger evolution: from a binary on/off nag into a calm "mirror"
-that classifies ON / AMBIGUOUS / OFF, makes drift conscious without shaming, and
-tracks a pre-committed drift limit toward an honor-system consequence (visible
-record + streak break).
+A major evolution: from a binary on/off nag into a calm "mirror" that classifies
+ON / AMBIGUOUS / OFF, makes drift conscious without shaming, and tracks a
+pre-committed drift limit toward an honor-system consequence (visible recap record).
 
-**Decided:** honor-system consequence; pre-commit = drift limit (default 3) +
-optional commitment line + cross-session streak; architecture B (model perceives
-3-state, Swift owns the deterministic engine); 3-phase rollout. Design Sections 1
-(data model) and 2 (per-cycle engine) approved.
-
-**Resume at:** Section 3 (prompts/UI + transparency log), Section 4 (commitment/
-threshold/streak + setup fields), Section 5 (testing). Full doc:
+**Design APPROVED** (Sections 1–4):
 [`planning/plans/2026-06-07-3state-accountability-design.md`](planning/plans/2026-06-07-3state-accountability-design.md).
+Decisions: honor-system consequence; pre-commit = setup-locked drift limit
+(default 3) + (Phase 2) optional commitment line + cross-session streak;
+architecture B (model perceives 3-state, Swift owns the deterministic engine);
+3-phase rollout.
 
-**Note:** this supersedes the earlier in-flight "is this related? + document in
-recap" request — that idea is folded into Phase 1 (AMBIGUOUS ask + transparency
-log). Nothing implemented yet.
+**Phase 1 (the spine) — BUILT** per
+[`docs/plans/2026-06-07-3state-phase1.md`](docs/plans/2026-06-07-3state-phase1.md)
+(16 tasks, subagent-driven, two-stage reviewed + a final holistic review). Delivered:
+`.ambiguous` state + 3-state classify prompt with bias-toward-ON/AMBIGUOUS (both
+providers); `JustificationEvent.kind` unified check log; **derived** tamper-proof
+`driftCount` + `commitmentBroken` vs a setup-locked drift-limit stepper; the
+AMBIGUOUS ask-once card (accept→allowance, reject→drift); the OFF calm break/resume
+choice (no excuse typing); a timed 5-min break with a ball countdown; auto-return
+logging for ignored prompts; and the session-recap **transparency log** + "Drift N
+of LIMIT" + firm broken-commitment line. Tone reframed to "mirror, not boss".
+
+Verification: **~299 unit tests** (`make -C src test`) + a **live Ollama 3-state-bias
+integration test** (passed on `qwen2.5:7b`); `make -C src build` clean. Code is on
+`master` in the inner `src/` repo.
+
+**Next:** manual "feel it" run, then **Phase 2** (cross-session streak, optional
+commitment line, adaptive cadence consuming model confidence, anti-gaming).
+Known Phase-1 limitation: the AMBIGUOUS ask is first-task-centric.
+
+**Retired/dormant from earlier versions:** the typed-excuse path
+(`handleExcuse`/`evaluateExcuse`) and the "give me 2 minutes" activity grace are
+retained for tests but no longer wired into the live flow (replaced by the AMBIGUOUS
+ask and the timed break).
 
 ---
 
