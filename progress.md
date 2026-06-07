@@ -35,9 +35,12 @@ Verification: **~299 unit tests** (`make -C src test`) + a **live Ollama 3-state
 integration test** (passed on `qwen2.5:7b`); `make -C src build` clean. Code is on
 `master` in the inner `src/` repo.
 
-**Next:** manual "feel it" run, then **Phase 2** (cross-session streak, optional
-commitment line, adaptive cadence consuming model confidence, anti-gaming).
-Known Phase-1 limitation: the AMBIGUOUS ask is first-task-centric.
+**Next:** manual "feel it" run — checklist in
+[`v3.2-phase1-manual-qa.md`](v3.2-phase1-manual-qa.md) (GUI/animation/permission/
+timing + a "how it feels" section to capture Phase 2 signal). Then **Phase 2**
+(cross-session streak, optional commitment line, adaptive cadence consuming model
+confidence, anti-gaming). Known Phase-1 limitation: the AMBIGUOUS ask is
+first-task-centric.
 
 **Retired/dormant from earlier versions:** the typed-excuse path
 (`handleExcuse`/`evaluateExcuse`) and the "give me 2 minutes" activity grace are
