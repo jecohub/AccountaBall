@@ -2,6 +2,14 @@
 
 AccountaBall — a macOS floating widget that watches your screen every ~5s to keep you accountable to the task you declared.
 
+> **Windows port in progress (see `windows/`).** A native C#/.NET + WinUI 3 port
+> at full parity is underway. Design:
+> `planning/plans/2026-06-10-windows-port-design.md`. Plan + live build progress
+> (what's done / what's next): `planning/plans/2026-06-10-windows-port-implementation.md`
+> — **read its "BUILD PROGRESS" section before continuing the port.** The macOS
+> Swift source (`src/`) is a separate repo (`jecohub/AccountaBall-macOS`) and is
+> the spec for the remaining `AccountaBall.Core` ports.
+
 ## Tech Stack
 - Frontend: SwiftUI + NSPanel (floating, always-on-top, borderless)
 - Backend: N/A (fully local)

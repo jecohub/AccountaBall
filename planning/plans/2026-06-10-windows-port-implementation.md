@@ -21,6 +21,51 @@ pass.
 `X.swift`", that Swift file is the spec — read it, translate behavior exactly
 (same cadence, same windows, same derived values, **prompts verbatim**).
 
+> **NOTE for a fresh session (esp. on Windows):** the Swift `src/` is NOT in this
+> repo — it lives in a separate private repo `jecohub/AccountaBall-macOS`. The
+> remaining Core ports (M2.4–2.6) need that Swift source as their spec, so do them
+> on a machine that has it cloned. The Windows-only milestones (M3 Platform, M4
+> WinUI shell) do NOT need the Swift source.
+
+---
+
+## ✅ BUILD PROGRESS (last updated 2026-06-10)
+
+The .NET solution lives in `windows/` (classic `.sln`, projects target `net8.0`).
+**Done so far — 47 unit tests green, all committed:**
+
+- [x] **M0** — solution scaffold (`AccountaBall.Core` + `AccountaBall.Core.Tests`).
+- [x] **M1** — `AppConstants`, `AppPhase`/`BallState`, `MultiTaskResult` + parse,
+      `AiPrompts` (6 system prompts verbatim).
+- [x] **M2.1 / M2.2** — `TaskItem`, `TaskSession`; `TaskMatcher`, `DurationDelta`,
+      `TimelineCoalescer` + the `SessionRecap` value types (`TimelineRange`,
+      `PerTaskComment`, `CheckLogItem`, `SessionRecap`, `PerTaskSessionInput`).
+- [x] **M2.3** — `AppState` (UI binding deferred to App layer) + `IKeyValueStore`
+      (in-memory fake; real impl is Platform/M3).
+
+**Next up:**
+- [ ] **M2.4** — `AccountabilityEngine`. FIRST model the persistence entities as
+      POCOs behind an `IStore` and define `IAiService`
+      (classifyMulti/matchTask/summarizeSession/summarizeTask/evaluateExcuse/healthCheck),
+      `ExcuseVerdict`, `TaskRecap`. Then port `processResult` (settle window,
+      activity grace, timed break, off-task dwell/driftConfirm, ambiguous ask-once,
+      derived `driftCount`/`commitmentBroken`) and the 9 `Engine*Tests.swift` files.
+- [ ] **M2.5** — recap builder (`finalizeSessionRecap`).
+- [ ] **M2.6** — FreeBall engine + condenser/dedup/markdown/export.
+- [ ] Also deferred from M2.1/2.2: `ScreenText` + `Snapshots` (need the OCR /
+      persistence abstractions).
+- [ ] **M3 / M4** — Platform integrations + WinUI shell (Windows 11 machine).
+
+**Build/test commands.** On macOS the Homebrew dotnet needs its env:
+```bash
+export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
+export PATH="/opt/homebrew/opt/dotnet/bin:$PATH"
+dotnet test windows/AccountaBall.sln
+```
+On Windows with the .NET 8 (or newer) SDK installed, just:
+`dotnet test windows\AccountaBall.sln`. The test project sets
+`RollForward=LatestMajor`, so a newer-only runtime still runs the net8.0 tests.
+
 ---
 
 ## Milestone 0 — Solution scaffold
