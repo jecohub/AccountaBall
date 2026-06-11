@@ -47,4 +47,28 @@ internal static class NativeWindow
     /// to the physical pixels AppWindow.Resize expects, per-monitor.
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    // --- Window region clipping (round ball / rounded cards) ---
+
+    /// Clip the window to an ellipse (the round ball) or a rounded rect (cards),
+    /// in physical pixels. SetWindowRgn takes ownership of the region — do not
+    /// delete it afterwards. Pass an empty rect to clear back to rectangular.
+    public static void SetRoundRegion(IntPtr hwnd, int w, int h, int cornerRadius, bool ellipse)
+    {
+        IntPtr rgn = ellipse
+            ? CreateEllipticRgn(0, 0, w + 1, h + 1)
+            : CreateRoundRectRgn(0, 0, w + 1, h + 1, cornerRadius, cornerRadius);
+        SetWindowRgn(hwnd, rgn, true);
+    }
+
+    public static void ClearRegion(IntPtr hwnd) => SetWindowRgn(hwnd, IntPtr.Zero, true);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateEllipticRgn(int x1, int y1, int x2, int y2);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRoundRectRgn(int x1, int y1, int x2, int y2, int w, int h);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowRgn(IntPtr hwnd, IntPtr hRgn, bool redraw);
 }

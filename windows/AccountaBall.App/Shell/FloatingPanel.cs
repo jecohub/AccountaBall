@@ -64,7 +64,19 @@ public sealed class FloatingPanel
             int y = area.WorkArea.Y + margin;
             _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
         }
+
+        // Clip the HWND: a circle for the compact ball, a rounded rect for cards.
+        // Deterministic shaping that doesn't depend on per-pixel window alpha.
+        if (IsCompact(phase))
+            NativeWindow.SetRoundRegion(_hwnd, pw, ph, 0, ellipse: true);
+        else
+            NativeWindow.SetRoundRegion(_hwnd, pw, ph, (int)Math.Round(16 * scale), ellipse: false);
     }
+
+    /// Ball-only phases render as a round, draggable basketball; everything else is
+    /// a card.
+    private static bool IsCompact(AppPhase phase) =>
+        phase is AppPhase.Idle or AppPhase.Session or AppPhase.FreeBall;
 
     /// Per-phase logical sizes. The compact ball (Idle/Session) is small and round;
     /// the cards grow for content. NOTE: approximated from the macOS layout — tune
