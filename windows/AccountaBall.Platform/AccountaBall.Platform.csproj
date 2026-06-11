@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows-only: WinRT projections (Windows.Media.Ocr, Windows.Graphics.Capture,
+         AppNotificationManager) come from the windows10.0.22621.0 TFM. -->
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>x64;x86;ARM64</Platforms>
+    <!-- Library, not packaged. The App project (M4) owns packaging/WinUI. -->
+    <UseWinUI>false</UseWinUI>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AccountaBall.Core\AccountaBall.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EF Core / SQLite store (M3.4). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.6" />
+    <!-- NOTE: ToastNotifier (M3.5, AppNotificationManager) lives in the App
+         project, not here — WindowsAppSDK injects legacy win10-* RIDs that the
+         .NET 8 portable RID graph rejects (NETSDK1083). The packaged WinUI App
+         (M4) owns WindowsAppSDK + Register()/AUMID, so the INotifier impl belongs
+         there. This library stays WindowsAppSDK-free so it builds standalone. -->
+  </ItemGroup>
+
+</Project>
