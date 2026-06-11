@@ -32,7 +32,7 @@ pass.
 ## ✅ BUILD PROGRESS (last updated 2026-06-10)
 
 The .NET solution lives in `windows/` (classic `.sln`, projects target `net8.0`).
-**Done so far — 47 unit tests green, all committed:**
+**Done so far — 92 unit tests green, all committed:**
 
 - [x] **M0** — solution scaffold (`AccountaBall.Core` + `AccountaBall.Core.Tests`).
 - [x] **M1** — `AppConstants`, `AppPhase`/`BallState`, `MultiTaskResult` + parse,
@@ -42,16 +42,25 @@ The .NET solution lives in `windows/` (classic `.sln`, projects target `net8.0`)
       `PerTaskComment`, `CheckLogItem`, `SessionRecap`, `PerTaskSessionInput`).
 - [x] **M2.3** — `AppState` (UI binding deferred to App layer) + `IKeyValueStore`
       (in-memory fake; real impl is Platform/M3).
+- [x] **M2.4** — `AccountabilityEngine`. Persistence POCOs (`WorkSession`,
+      `TimelineEntry`, `JustificationEvent`, `KnowledgeTask`, `Allowance`,
+      `TaskCompletion`) behind `IStore` (+ `InMemoryStore`); `IAiService` (+
+      `TaskPreviousRun`), `INotifier`, `ExcuseVerdict` (+ parse), `TaskRecap`. The
+      decision logic: `ProcessResult`/`ProcessCycle`, lifecycle, derived
+      `DriftCount`/`CommitmentBroken`, 2-consecutive + dwell drift confirm, AMBIGUOUS
+      ask-once, timed break, settle + activity-grace windows, auto-return, AI
+      pause/recover, allowances + `HandleExcuseAsync`. 41 engine tests (6 files).
+      Dropped (macOS-only): the App-Nap activity token.
 
 **Next up:**
-- [ ] **M2.4** — `AccountabilityEngine`. FIRST model the persistence entities as
-      POCOs behind an `IStore` and define `IAiService`
-      (classifyMulti/matchTask/summarizeSession/summarizeTask/evaluateExcuse/healthCheck),
-      `ExcuseVerdict`, `TaskRecap`. Then port `processResult` (settle window,
-      activity grace, timed break, off-task dwell/driftConfirm, ambiguous ask-once,
-      derived `driftCount`/`commitmentBroken`) and the 9 `Engine*Tests.swift` files.
-- [ ] **M2.5** — recap builder (`finalizeSessionRecap`).
-- [ ] **M2.6** — FreeBall engine + condenser/dedup/markdown/export.
+- [ ] **M2.5** — completion + recap + match: `SummarizeCompletionAsync`
+      (KnowledgeTask/TaskCompletion), `FinalizeSessionRecapAsync` (the recap +
+      transparency log), `ProposeMatchAsync` (cheap + AI match). Port
+      `EngineCompletionTests`, `EngineMatchTests`, `EngineSessionRecapTests`. Wire
+      the fire-and-forget summarizeCompletion into `CompleteTask`, and the
+      allowance-confirm-on-reuse queue (`linkKnowledgeTask`/confirm/reject).
+- [ ] **M2.6** — FreeBall engine + condenser/dedup/markdown/export + add
+      `summarizeFreeBall` to `IAiService`.
 - [ ] Also deferred from M2.1/2.2: `ScreenText` + `Snapshots` (need the OCR /
       persistence abstractions).
 - [ ] **M3 / M4** — Platform integrations + WinUI shell (Windows 11 machine).
