@@ -1,0 +1,35 @@
+namespace AccountaBall.App.Shell;
+
+/// The actions the phase views can invoke. Implemented by the App-layer host
+/// (M4.4), which routes them to the engine + AppState. Keeping views behind this
+/// interface lets them stay free of engine/store references.
+public interface IShellActions
+{
+    // Setup / session lifecycle
+    void OpenSetup();
+    void AddTask(string title, string context);
+    void RemoveTask(int index);
+    void SetDriftLimit(int limit);
+    void StartSession();
+
+    // Ambiguous resolution (ask once)
+    void AcceptAmbiguous(string reason);
+    void RejectAmbiguous();
+
+    // Off-task card
+    void TakeBreak();
+    void ResumeWatching(bool graceForCurrentActivity);
+
+    // Completion
+    void DismissCompletion();
+
+    // AI unavailable
+    void RetryAi();
+    void OpenOllamaDownload();
+
+    // FreeBall passive mode
+    void StartFreeBall();
+    void EndFreeBall();
+    void ViewFreeBallHistory();
+    void CloseFreeBallHistory();
+}
