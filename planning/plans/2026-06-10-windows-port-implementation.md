@@ -87,8 +87,17 @@ the repo owner — Core is treated read-only on Windows).
       `WindowsAppSDKSelfContained` + `SelfContained` in the csproj — which also
       requires building with an explicit `-p:Platform=x64` (self-contained rejects
       `AnyCPU`). The crash logger + non-fatal `Register()` guard are kept.
-- [ ] **M4.5** — manual "feel it" QA pass (capture reads focused window, no-activate
-      holds, cards size right, toasts fire, full on→ambiguous→off→break→complete loop).
+- [~] **M4.5** — manual "feel it" QA pass. **AI half proven (automated):** this
+      machine runs **`qwen2.5:14b`** (set in `%LOCALAPPDATA%\AccountaBall\config.json`;
+      ~9.5 GB, 100% GPU-resident on the 12 GB RTX 3060, classify 1–4 s — inside the 3 s
+      cadence). Validated the live `ClassifySystem` contract end-to-end: the model emits
+      the expected `{"result","label"}` JSON and the ON / AMBIGUOUS / OFFTASK bias holds
+      (Stack Overflow → AMBIGUOUS, not OFFTASK). **Still needs a human at the keyboard:**
+      (1) **WGC real-capture validation** — confirm `GraphicsCaptureService` actually
+      yields a frame whose OCR text feeds the classifier (the M3.3 open unknown; only
+      exercised once a session is running); (2) no-activate focus holds when clicking the
+      ball; (3) cards size right per phase; (4) toasts fire on a confirmed drift; (5) the
+      full on→ambiguous→off→break→complete loop + a FreeBall record/recap feel like the Mac.
 
 ### Earlier (Core, done on macOS — read-only on Windows)
 **92 unit tests green, all committed:**
