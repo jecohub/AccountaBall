@@ -265,4 +265,11 @@ public sealed class AppController : IShellActions
         _state.BallState = BallState.Idle;
         RenderUi();
     }
+
+    public void ExitApp()
+    {
+        // Stop the capture loop before tearing down so no tick fires mid-exit.
+        _timer?.Stop();
+        Microsoft.UI.Xaml.Application.Current.Exit();
+    }
 }

@@ -32,4 +32,7 @@ public interface IShellActions
     void EndFreeBall();
     void ViewFreeBallHistory();
     void CloseFreeBallHistory();
+
+    // Quit the app
+    void ExitApp();
 }

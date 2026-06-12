@@ -100,4 +100,5 @@ internal sealed class NullShellActions : IShellActions
     public void EndFreeBall() { }
     public void ViewFreeBallHistory() { }
     public void CloseFreeBallHistory() { }
+    public void ExitApp() { }
 }
