@@ -82,6 +82,19 @@ the repo owner — Core is treated read-only on Windows).
       `IShellActions`): Welcome, TaskSetup (drift stepper), WhatsUp, Ambiguous,
       OffTask, Progress, Completion (recap + ◐/●/○ log), AiUnavailable, FreeBall
       card. `UiKit` helper. FreeBall recap/history are functional stubs pending Core M2.6.
+- [x] **M4.3a** — interaction affordances added during the launch-QA pass (all
+      verified live: hover pixel-diff, real-click, UIA):
+  - **Hover/click input fix.** The panel was un-interactive (no hover, Setup text box
+    couldn't be focused) because `WS_EX_NOACTIVATE` suppresses pointer input to the
+    WinUI 3 island — removed (see M4.1). Hover + clicks now work.
+  - **Quit (X) button.** A Windows-style ✕ top-right of every card phase →
+    `IShellActions.ExitApp` (stops the loop, `Application.Exit`).
+  - **Ball is tappable.** The bare ball (FreeBall/Session) had no handler and the X is
+    hidden there, so a session couldn't be ended — `Ball.Tapped` → `BallTapped`:
+    FreeBall → `FreeBallLog` (End & summarize / Past sessions), Session → `Progress`.
+  - **Stale-build gotcha:** only the self-contained `bin\x64\Debug\...\win-x64\` exe is
+    valid; the old `bin\Debug\...` output was deleted (running it gave the pre-fix,
+    un-hoverable binary). Always launch the `x64` path.
 - [x] **M4.4** — `AppController` wires store/providers/engine + the ~3s capture loop
       (DispatcherQueueTimer, all engine/EF access on the UI thread), implements
       `IShellActions`, and `App.OnLaunched` registers toasts + starts it. **Launch
@@ -102,9 +115,13 @@ the repo owner — Core is treated read-only on Windows).
       (Stack Overflow → AMBIGUOUS, not OFFTASK). **Still needs a human at the keyboard:**
       (1) **WGC real-capture validation** — confirm `GraphicsCaptureService` actually
       yields a frame whose OCR text feeds the classifier (the M3.3 open unknown; only
-      exercised once a session is running); (2) no-activate focus holds when clicking the
-      ball; (3) cards size right per phase; (4) toasts fire on a confirmed drift; (5) the
-      full on→ambiguous→off→break→complete loop + a FreeBall record/recap feel like the Mac.
+      exercised once a session is running); (2) **strict no-focus-steal is currently a
+      TODO** — `WS_EX_NOACTIVATE` had to be dropped (it killed hover/typing), so the panel
+      activates on click like a normal window; restoring the macOS non-activating feel
+      needs the island input bridge subclassed (a plain `WM_MOUSEACTIVATE`/`MA_NOACTIVATE`
+      handler did not work); (3) cards size right per phase; (4) toasts fire on a confirmed
+      drift; (5) the full on→ambiguous→off→break→complete loop + a FreeBall record/recap
+      feel like the Mac.
 
 ### Earlier (Core, done on macOS — read-only on Windows)
 **92 unit tests green, all committed:**
