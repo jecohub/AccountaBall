@@ -52,6 +52,19 @@ The .NET solution lives in `windows/` (classic `.sln`, projects target `net8.0`)
       pause/recover, allowances + `HandleExcuseAsync`. 41 engine tests (6 files).
       Dropped (macOS-only): the App-Nap activity token.
 
+- [x] **M2.6** — FreeBall passive mode: `FreeBallSession`/`FreeBallCapture`/
+      `CategorySpan`, `FreeBallRecap`/`Summary`/`TranscriptEntry`/`PastRecap`;
+      `FreeBallDedup`/`Condenser`/`Markdown`/`Export`; `AiPrompts.BuildFreeBallPrompt`
+      + `ParseFreeBallSummary`; `IAiService.SummarizeFreeBallAsync`; `IStore` FreeBall
+      ops; `AppState.FreeBallRecap`; `FreeBallEngine` (`Begin`/`Ingest`/`EndAsync`).
+      16 tests. **The dwell OCR-wobble fix** also landed in both Core + Swift.
+
+**FreeBall Core API for the App layer (M4):** `new FreeBallEngine(state, ai) { Store = ... }`;
+call `Begin()` on "Just observe", drive `Ingest(ocrText)` from the Platform capture
+loop each cycle, `await EndAsync()` on "End Session". Recap is published to
+`state.FreeBallRecap`; history via `store.FreeBallSessions` + `FreeBallRecap.FromSession(s)`;
+export via `FreeBallMarkdown.Render` / `FreeBallExport`.
+
 **Next up:**
 - [ ] **M2.5** — completion + recap + match: `SummarizeCompletionAsync`
       (KnowledgeTask/TaskCompletion), `FinalizeSessionRecapAsync` (the recap +
@@ -59,8 +72,6 @@ The .NET solution lives in `windows/` (classic `.sln`, projects target `net8.0`)
       `EngineCompletionTests`, `EngineMatchTests`, `EngineSessionRecapTests`. Wire
       the fire-and-forget summarizeCompletion into `CompleteTask`, and the
       allowance-confirm-on-reuse queue (`linkKnowledgeTask`/confirm/reject).
-- [ ] **M2.6** — FreeBall engine + condenser/dedup/markdown/export + add
-      `summarizeFreeBall` to `IAiService`.
 - [ ] Also deferred from M2.1/2.2: `ScreenText` + `Snapshots` (need the OCR /
       persistence abstractions).
 - [ ] **M3 / M4** — Platform integrations + WinUI shell (Windows 11 machine).
