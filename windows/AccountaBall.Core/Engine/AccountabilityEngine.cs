@@ -360,14 +360,16 @@ public sealed class AccountabilityEngine
             _state.Tasks[index].TimeOnTask += AppConstants.CycleSeconds;
     }
 
-    /// Mark a task complete from a `.done` read. (The fire-and-forget
-    /// summarizeCompletion is added in M2.5.)
+    /// Mark a task complete from a `.done` read, then kick off the recap.
     private void CompleteTask(int index, string label)
     {
         LastActivityLabel = label;
         Record(index, label);
         Stop();
         _state.CompleteTaskAt(index);
+        // Fire-and-forget — don't block the completion animation. No-op without a
+        // store; fully guarded internally so it never surfaces an exception.
+        _ = SummarizeCompletionAsync(index);
     }
 
     // MARK: - AMBIGUOUS resolution (ask once; accept/reject)
@@ -479,5 +481,217 @@ public sealed class AccountabilityEngine
             if (active.Count > 0) outp[i] = active;
         }
         return outp;
+    }
+
+    // MARK: - Session recap (end-of-session breakdown)
+
+    /// Build the end-of-session breakdown: mechanical timeline ranges + one AI call
+    /// for per-task commentary (local comparisons computed here). Never throws — AI
+    /// failure degrades to timeline + local comparison strings.
+    public async Task FinalizeSessionRecapAsync()
+    {
+        if (CurrentSession is not { } session || Store is not { } store) return;
+
+        var ranges = TimelineCoalescer.Ranges(session.StartedAt,
+            session.Entries.Select(e => (e.At, e.TaskIndex, e.Label)).ToList());
+
+        // Share ONE definition with DriftCount (kind == "offtask").
+        var offCount = session.Justifications.Count(j => j.Kind == "offtask");
+        var sortedReads = session.Entries.OrderBy(e => e.At).Select(e => ((int?)e.TaskIndex, e.Label)).ToList();
+
+        var inputs = new List<PerTaskSessionInput>();
+        for (int taskIdx = 0; taskIdx < _state.Tasks.Count; taskIdx++)
+        {
+            var task = _state.Tasks[taskIdx];
+            var dur = task.TimeOnTask;
+            var normalized = TaskMatcher.Normalize(task.Task);
+            var kt = store.KnowledgeTasks.FirstOrDefault(k => k.NormalizedTitle == normalized);
+            var prior = (kt?.Completions ?? new List<TaskCompletion>()).Where(c => c.CompletedAt < session.StartedAt).ToList();
+            double? lastDur = prior.OrderByDescending(c => c.CompletedAt).FirstOrDefault()?.Duration;
+            double? avg = prior.Count == 0 ? null : prior.Average(c => c.Duration);
+            var comparison = ComparisonString(dur, lastDur, avg);
+            var steps = TimelineCoalescer.LabelsForTask(taskIdx, sortedReads);
+            inputs.Add(new PerTaskSessionInput(task.Task, dur, lastDur, avg, offCount, steps, comparison));
+        }
+
+        IReadOnlyList<PerTaskComment> modelComments = Array.Empty<PerTaskComment>();
+        try { modelComments = await _ai.SummarizeSessionAsync(inputs); }
+        catch { /* degrade to local comparisons */ }
+
+        static string Key(string s) => s.Trim().ToLowerInvariant();
+        var comments = inputs
+            .Select(input => modelComments.FirstOrDefault(m => Key(m.TaskTitle) == Key(input.Title))
+                             ?? new PerTaskComment(input.Title, input.LocalComparison, null))
+            .ToList();
+
+        var start = session.StartedAt;
+        var checks = session.Justifications.OrderBy(j => j.At).Select(j =>
+        {
+            string note;
+            switch (j.Kind)
+            {
+                case "ambiguous":
+                    var reason = j.Excuse.Trim();
+                    note = reason.Length == 0 ? "you marked it related" : $"you marked related: \"{reason}\"";
+                    break;
+                case "auto-return":
+                    note = j.Rule.Length == 0 ? "resumed watching" : j.Rule;
+                    break;
+                default: // "offtask"
+                    note = "you drifted";
+                    break;
+            }
+            return new CheckLogItem((j.At - start).TotalSeconds, j.Kind, j.Activity, note);
+        }).ToList();
+
+        _state.SessionRecap = new SessionRecap(ranges, comments, checks, DriftCount, _state.DriftLimit, CommitmentBroken);
+    }
+
+    public static string ComparisonString(double current, double? last, double? average)
+    {
+        static string Mins(double t) => $"{(int)Math.Round(t / 60.0, MidpointRounding.AwayFromZero)}m";
+        if (last is not { } l) return $"First time finishing this — {Mins(current)}.";
+        var d = DurationDelta.Compare(current, l);
+        var s = d.FasterThanPrevious
+            ? $"Faster than last time ({Mins(l)} → {Mins(current)})."
+            : $"Slower than last time ({Mins(l)} → {Mins(current)}).";
+        if (average is { } a) s += $" Avg {Mins(a)}.";
+        return s;
+    }
+
+    // MARK: - Completion summary
+
+    /// On task completion: coalesce the session's reads into steps, resolve/create
+    /// the KnowledgeTask, ask the AI for a recap, persist a TaskCompletion, and
+    /// publish the recap. Fire-and-forget from CompleteTask; safe to await in tests.
+    public async Task SummarizeCompletionAsync(int taskIndex)
+    {
+        if (CurrentSession is not { } session || Store is not { } store
+            || taskIndex < 0 || taskIndex >= _state.Tasks.Count) return;
+
+        var reads = session.Entries.OrderBy(e => e.At).Select(e => ((int?)e.TaskIndex, e.Label)).ToList();
+        var steps = TimelineCoalescer.LabelsForTask(taskIndex, reads);
+        var duration = _state.Tasks[taskIndex].TimeOnTask;
+
+        var taskTitle = _state.Tasks[taskIndex].Task;
+        var normalized = TaskMatcher.Normalize(taskTitle);
+        var existing = store.KnowledgeTasks.FirstOrDefault(k => k.NormalizedTitle == normalized);
+        KnowledgeTask kt;
+        if (existing is not null)
+        {
+            kt = existing;
+        }
+        else
+        {
+            kt = new KnowledgeTask(normalized, DateTimeOffset.UtcNow) { OriginalTitles = { taskTitle } };
+            store.AddKnowledgeTask(kt);
+        }
+
+        var previousCompletion = kt.Completions.OrderByDescending(c => c.CompletedAt).FirstOrDefault();
+        TaskPreviousRun? previous = previousCompletion is null
+            ? null
+            : new TaskPreviousRun(previousCompletion.Duration, previousCompletion.Steps, previousCompletion.OffTaskCount);
+
+        TaskRecap recap;
+        try
+        {
+            recap = await _ai.SummarizeTaskAsync(taskTitle, _state.Tasks[taskIndex].Context, steps, duration, previous);
+        }
+        catch
+        {
+            var countOff = session.Justifications.Count(j => !j.Justified);
+            kt.Completions.Add(new TaskCompletion(DateTimeOffset.UtcNow, duration, "", steps.ToList(), countOff));
+            kt.LastCompletedAt = DateTimeOffset.UtcNow;
+            kt.TimesCompleted += 1;
+            store.Save();
+            return;
+        }
+
+        var storedSteps = recap.Steps.Count == 0 ? steps.ToList() : recap.Steps.ToList();
+        var countOffFinal = session.Justifications.Count(j => !j.Justified);
+        kt.Completions.Add(new TaskCompletion(DateTimeOffset.UtcNow, duration, recap.Summary, storedSteps, countOffFinal));
+        kt.LastCompletedAt = DateTimeOffset.UtcNow;
+        kt.TimesCompleted += 1;
+        store.Save();
+
+        _state.Recaps[taskTitle] = new TaskRecap(recap.Summary, storedSteps, duration, recap.Comparison);
+    }
+
+    // MARK: - Task matching
+
+    /// Find the best matching prior KnowledgeTask: cheap normalized match first, AI
+    /// semantic match as a fallback. Null if neither hits.
+    public async Task<KnowledgeTask?> ProposeMatchAsync(string taskText)
+    {
+        if (Store is not { } store) return null;
+        var allKts = store.KnowledgeTasks;
+        var candidates = allKts
+            .Select(k => (k.NormalizedTitle, k.NormalizedTitle, (IReadOnlyList<string>)k.OriginalTitles))
+            .ToList();
+        var id = TaskMatcher.CheapMatch(taskText, candidates);
+        if (id is not null)
+        {
+            var hit = allKts.FirstOrDefault(k => k.NormalizedTitle == id);
+            if (hit is not null) return hit;
+        }
+        var aiCandidates = allKts
+            .Select(k => (k.NormalizedTitle,
+                          k.OriginalTitles.LastOrDefault() ?? k.NormalizedTitle,
+                          k.Completions.OrderByDescending(c => c.CompletedAt).FirstOrDefault()?.Summary ?? ""))
+            .ToList();
+        try
+        {
+            var match = await _ai.MatchTaskAsync(taskText, aiCandidates);
+            if (match is { } m && m.Confident) return allKts.FirstOrDefault(k => k.NormalizedTitle == m.Id);
+        }
+        catch { /* AI match failure -> no match */ }
+        return null;
+    }
+
+    // MARK: - Allowance confirm-on-reuse
+
+    private readonly List<(string Title, KnowledgeTask Kt, Allowance Allowance)> _pendingConfirms = new();
+
+    /// Link a revived KnowledgeTask to a declared task, mark its allowances as
+    /// needing one-time confirmation, and surface the first prompt.
+    public void LinkKnowledgeTask(KnowledgeTask kt, int taskIndex)
+    {
+        if (taskIndex < 0 || taskIndex >= _state.Tasks.Count) return;
+        _state.Tasks[taskIndex].KnowledgeRef = kt.Id;
+        foreach (var a in kt.Allowances) a.NeedsConfirmation = true;
+        Store?.Save();
+        var title = _state.Tasks[taskIndex].Task;
+        foreach (var a in kt.Allowances.Where(a => a.NeedsConfirmation))
+            _pendingConfirms.Add((title, kt, a));
+        SurfaceNextAllowanceConfirm();
+    }
+
+    private void SurfaceNextAllowanceConfirm()
+    {
+        _state.PendingAllowanceConfirm = _pendingConfirms.Count > 0
+            ? new AllowanceConfirm(_pendingConfirms[0].Title, _pendingConfirms[0].Allowance.Rule)
+            : null;
+    }
+
+    /// User confirmed the revived allowance still applies: clear its flag, advance.
+    public void ConfirmPendingAllowance()
+    {
+        if (_pendingConfirms.Count == 0) return;
+        _pendingConfirms[0].Allowance.NeedsConfirmation = false;
+        Store?.Save();
+        _pendingConfirms.RemoveAt(0);
+        SurfaceNextAllowanceConfirm();
+    }
+
+    /// User rejected the revived allowance: delete it, advance.
+    public void RejectPendingAllowance()
+    {
+        if (_pendingConfirms.Count == 0) return;
+        var front = _pendingConfirms[0];
+        front.Kt.Allowances.Remove(front.Allowance);
+        Store?.DeleteAllowance(front.Allowance);
+        Store?.Save();
+        _pendingConfirms.RemoveAt(0);
+        SurfaceNextAllowanceConfirm();
     }
 }

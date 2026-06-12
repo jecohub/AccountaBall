@@ -65,16 +65,25 @@ loop each cycle, `await EndAsync()` on "End Session". Recap is published to
 `state.FreeBallRecap`; history via `store.FreeBallSessions` + `FreeBallRecap.FromSession(s)`;
 export via `FreeBallMarkdown.Render` / `FreeBallExport`.
 
-**Next up:**
-- [ ] **M2.5** — completion + recap + match: `SummarizeCompletionAsync`
-      (KnowledgeTask/TaskCompletion), `FinalizeSessionRecapAsync` (the recap +
-      transparency log), `ProposeMatchAsync` (cheap + AI match). Port
-      `EngineCompletionTests`, `EngineMatchTests`, `EngineSessionRecapTests`. Wire
-      the fire-and-forget summarizeCompletion into `CompleteTask`, and the
-      allowance-confirm-on-reuse queue (`linkKnowledgeTask`/confirm/reject).
-- [ ] Also deferred from M2.1/2.2: `ScreenText` + `Snapshots` (need the OCR /
-      persistence abstractions).
-- [ ] **M3 / M4** — Platform integrations + WinUI shell (Windows 11 machine).
+- [x] **M2.5** — completion + recap + match: `SummarizeCompletionAsync`
+      (KnowledgeTask/TaskCompletion, wired fire-and-forget into `CompleteTask`),
+      `FinalizeSessionRecapAsync` + `ComparisonString` (recap + transparency log),
+      `ProposeMatchAsync` (cheap + AI), `AppState.Recaps`, and the
+      allowance-confirm-on-reuse queue (`LinkKnowledgeTask`/`ConfirmPendingAllowance`/
+      `RejectPendingAllowance`). 4 tests.
+
+## ✅ `AccountaBall.Core` IS COMPLETE — 113 tests green. Parity gate met.
+
+The whole brain (M0–M2.6) is ported and tested. **Everything from here is
+Windows-only:**
+- [ ] **M3** — Platform: `IScreenCapture` (`Windows.Graphics.Capture`),
+      `IOcrService` (`Windows.Media.Ocr`), `IStore` (EF Core/SQLite),
+      `INotifier` (toasts), `OllamaAiService` (`HttpClient`). The capture loop
+      drives `engine.ProcessCycle(...)` (accountability) and `freeBall.Ingest(...)`.
+- [ ] **M4** — WinUI 3 shell: borderless no-activate ball, per-phase views, recap
+      UI, FreeBall UI, wired to the engines.
+- [ ] Minor Core leftovers when M3 lands: `ScreenText` (needs `IOcrService` +
+      `CapturedFrame`) and `Snapshots`/`KnowledgeTaskSnapshot`.
 
 **Build/test commands.** On macOS the Homebrew dotnet needs its env:
 ```bash

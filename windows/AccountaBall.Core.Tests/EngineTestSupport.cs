@@ -26,7 +26,7 @@ internal class AlwaysOnTaskAI : IAiService
         => Task.FromResult<MultiTaskResult>(new MultiTaskResult.OnTask(0, ""));
     public virtual Task<ExcuseVerdict> EvaluateExcuseAsync(string excuse, IReadOnlyList<TaskItem> tasks, string screenText)
         => Task.FromResult(new ExcuseVerdict(false, null, ""));
-    public Task<TaskRecap> SummarizeTaskAsync(string title, string context, IReadOnlyList<string> steps,
+    public virtual Task<TaskRecap> SummarizeTaskAsync(string title, string context, IReadOnlyList<string> steps,
         double durationSeconds, TaskPreviousRun? previous)
         => Task.FromResult(new TaskRecap("", Array.Empty<string>(), durationSeconds, null));
     public Task<(string Id, bool Confident)?> MatchTaskAsync(string query,
