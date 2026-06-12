@@ -166,17 +166,36 @@ public class EngineDriftDwellTests
     }
 
     [Fact]
-    public void SwitchingOffScreens_RestartsClock()
+    public void SwitchingOffScreens_KeepsAccumulating()
     {
+        // Continuous-dwell behavior: hopping between off-task screens (or OCR label
+        // wobble on one screen) no longer resets the clock — sustained off-task time
+        // still confirms. The streak only resets on a genuine return to work.
         var (state, engine, _, clock) = EngineTest.MakeWithClock(null, "write proposal");
         engine.ResetSettleWindowToPast();
         engine.ProcessResult(new MultiTaskResult.OffTask("yt"));
         clock.Now = clock.Now.AddSeconds(8);
         engine.ProcessResult(new MultiTaskResult.OffTask("twitter"));
-        clock.Now = clock.Now.AddSeconds(8);
+        clock.Now = clock.Now.AddSeconds(8);   // 16s continuously off-task across two labels
         engine.ProcessResult(new MultiTaskResult.OffTask("twitter"));
-        Assert.Equal(AppPhase.Session, state.AppPhase);
-        Assert.Equal(0, engine.DriftCount);
+        Assert.Equal(AppPhase.OffTask, state.AppPhase);
+        Assert.Equal(1, engine.DriftCount);
+    }
+
+    [Fact]
+    public void LabelWobbleOnOneScreen_StillConfirms()
+    {
+        // The bug this fixes: real OCR makes the label change every cycle even on a
+        // single static off-task screen. It must still confirm.
+        var (state, engine, _, clock) = EngineTest.MakeWithClock(null, "write proposal");
+        engine.ResetSettleWindowToPast();
+        engine.ProcessResult(new MultiTaskResult.OffTask("YouTube - video title A"));
+        clock.Now = clock.Now.AddSeconds(8);
+        engine.ProcessResult(new MultiTaskResult.OffTask("YouTube - video title A (recommended)"));
+        clock.Now = clock.Now.AddSeconds(8);
+        engine.ProcessResult(new MultiTaskResult.OffTask("YouTube - watching, 2 min in"));
+        Assert.Equal(AppPhase.OffTask, state.AppPhase);
+        Assert.Equal(1, engine.DriftCount);
     }
 
     [Fact]

@@ -325,13 +325,18 @@ public sealed class AccountabilityEngine
                 }
                 _suspicionCount += 1;
                 _state.ActiveTaskIndex = null;
-                // Same-screen dwell: keep the clock running while the label is
-                // unchanged; restart it the moment the screen changes.
-                if (_offTaskStreakStart is null || !ActivityMatches(off.Label, _offTaskStreakActivity))
+                // Continuous off-task dwell: the clock starts on the first off-task
+                // read and keeps running across label wobble. Real OCR is noisy, so
+                // the model's screen label drifts frame-to-frame even on one screen;
+                // resetting on every label change meant a genuine sustained drift
+                // never reached the threshold. The streak resets only when an
+                // on-task / ambiguous read clears it — i.e. when the user actually
+                // returns to work (see ClearOffTaskStreak callers).
+                if (_offTaskStreakStart is null)
                 {
                     _offTaskStreakStart = Now();
-                    _offTaskStreakActivity = off.Label;
                 }
+                _offTaskStreakActivity = off.Label;   // tracked for display; does not reset the clock
                 var dwell = (Now() - _offTaskStreakStart!.Value).TotalSeconds;
                 if (dwell >= AppConstants.DriftConfirmSeconds && !InSettleWindow && _state.AppPhase == AppPhase.Session)
                 {
