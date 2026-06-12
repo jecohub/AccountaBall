@@ -29,10 +29,61 @@ pass.
 
 ---
 
-## ✅ BUILD PROGRESS (last updated 2026-06-10)
+## ✅ BUILD PROGRESS (last updated 2026-06-12)
 
-The .NET solution lives in `windows/` (classic `.sln`, projects target `net8.0`).
-**Done so far — 92 unit tests green, all committed:**
+The .NET solution lives in `windows/` (classic `.sln`). Core/Tests target `net8.0`;
+Platform + App target `net8.0-windows10.0.22621.0`. **The whole solution builds
+win-x64 (0 warnings / 0 errors) and 91/92 Core tests pass** (the 1 failure is a
+pre-existing CRLF-vs-LF assertion in `AiPromptsTests`, left to the macOS side per
+the repo owner — Core is treated read-only on Windows).
+
+> **Windows build note:** the machine has .NET SDK 8.0.422 **and** 10.0.301. The
+> port is pinned to the 8.x SDK via `windows/global.json` because the .NET 10 SDK
+> rejects WindowsAppSDK 1.5's legacy `win10-*` RIDs (NETSDK1083). Build/run the App
+> with an explicit RID: `dotnet build windows\AccountaBall.App\AccountaBall.App.csproj -r win-x64`.
+
+### M3 — Platform integrations (`AccountaBall.Platform`) — DONE (builds clean)
+- [x] **M3.1** — `IScreenCapture` / `IOcrService` interfaces. **Kept in Platform,
+      not Core** (the engine never references frames), so Core stays untouched.
+- [x] **M3.2** — `WindowsMediaOcrService` (`Windows.Media.Ocr`, Bgra8 convert).
+- [x] **M3.3** — `GraphicsCaptureService` + `Direct3D11Interop` (WGC single-frame
+      per cycle, per-HWND session rebuild). ⚠️ Compiles, but the WGC/D3D interop
+      still needs a **real-capture validation pass** (frame actually yields text).
+- [x] **M3.4** — `SqliteStore` + `AccountaBallDbContext` (EF Core/SQLite). Shadow
+      keys + EF8 primitive collections so the Core POCOs keep zero EF annotations.
+      Schema via `EnsureCreated()` (no migrations yet). Also `FileKeyValueStore`
+      (JSON at `%LOCALAPPDATA%\AccountaBall\settings.json`) for the UserDefaults analog.
+- [x] **M3.5** — `ToastNotifier` (`AppNotificationManager`). **Moved into the App
+      project** — WindowsAppSDK drags in the `win10-*` RIDs, so the Platform library
+      stays WindowsAppSDK-free and the packaged App owns Register()/AUMID.
+- [x] **M3.6** — `OllamaAiService` + `OllamaConfig` (all 6 `IAiService` methods,
+      `AiPrompts` verbatim, `format:json` + temp 0, env → config.json → defaults).
+
+### M4 — WinUI 3 shell (`AccountaBall.App`, unpackaged) — IN PROGRESS
+- [x] **M4.0** — project scaffold, `app.manifest` (PerMonitorV2). Launches.
+- [x] **M4.1** — `FloatingPanel`: borderless, always-on-top, off-switcher,
+      `WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW`, DPI-aware per-`AppPhase` resize.
+- [x] **M4.2** — `BallView` (basketball, per-`BallState` faces incl. Observing);
+      round/rounded HWND clip via `SetWindowRgn`. Launch-verified.
+- [x] **M4.3** — `RootCoordinator` + code-first phase cards (`IPhaseView`/
+      `IShellActions`): Welcome, TaskSetup (drift stepper), WhatsUp, Ambiguous,
+      OffTask, Progress, Completion (recap + ◐/●/○ log), AiUnavailable, FreeBall
+      card. `UiKit` helper. FreeBall recap/history are functional stubs pending Core M2.6.
+- [~] **M4.4** — `AppController` wires store/providers/engine + the ~3s capture loop
+      (DispatcherQueueTimer, all engine/EF access on the UI thread), implements
+      `IShellActions`, and `App.OnLaunched` registers toasts + starts it. **Builds
+      clean.** ⚠️ **OPEN ISSUE:** launched exe stays alive ~8s but creates **no**
+      `%LOCALAPPDATA%\AccountaBall` dir and **no** crash log — so `OnLaunched`
+      likely isn't reaching `AppController` (suspect: bootstrapper/entry not
+      invoking `OnLaunched`, or an early throw before the logger). Added a crash
+      logger + non-fatal `Register()` guard; **next step: find why no dir/log
+      appears** (confirm OnLaunched runs; check the generated Main / bootstrap; run
+      the exe in a console to see stderr).
+- [ ] **M4.5** — manual "feel it" QA pass (capture reads focused window, no-activate
+      holds, cards size right, toasts fire, full on→ambiguous→off→break→complete loop).
+
+### Earlier (Core, done on macOS — read-only on Windows)
+**92 unit tests green, all committed:**
 
 - [x] **M0** — solution scaffold (`AccountaBall.Core` + `AccountaBall.Core.Tests`).
 - [x] **M1** — `AppConstants`, `AppPhase`/`BallState`, `MultiTaskResult` + parse,
