@@ -40,7 +40,13 @@ the repo owner — Core is treated read-only on Windows).
 > **Windows build note:** the machine has .NET SDK 8.0.422 **and** 10.0.301. The
 > port is pinned to the 8.x SDK via `windows/global.json` because the .NET 10 SDK
 > rejects WindowsAppSDK 1.5's legacy `win10-*` RIDs (NETSDK1083). Build/run the App
-> with an explicit RID: `dotnet build windows\AccountaBall.App\AccountaBall.App.csproj -r win-x64`.
+> with an explicit RID **and platform** (self-contained mode rejects `AnyCPU`):
+> `dotnet build windows\AccountaBall.App\AccountaBall.App.csproj -r win-x64 -p:Platform=x64`.
+> The exe lands at
+> `windows\AccountaBall.App\bin\x64\Debug\net8.0-windows10.0.22621.0\win-x64\AccountaBall.App.exe`.
+> `dotnet test windows\AccountaBall.sln` still works as the parity gate — it only
+> builds Core + Core.Tests (App/Platform aren't test deps), so the App's
+> self-contained settings don't affect it.
 
 ### M3 — Platform integrations (`AccountaBall.Platform`) — DONE (builds clean)
 - [x] **M3.1** — `IScreenCapture` / `IOcrService` interfaces. **Kept in Platform,
@@ -69,16 +75,18 @@ the repo owner — Core is treated read-only on Windows).
       `IShellActions`): Welcome, TaskSetup (drift stepper), WhatsUp, Ambiguous,
       OffTask, Progress, Completion (recap + ◐/●/○ log), AiUnavailable, FreeBall
       card. `UiKit` helper. FreeBall recap/history are functional stubs pending Core M2.6.
-- [~] **M4.4** — `AppController` wires store/providers/engine + the ~3s capture loop
+- [x] **M4.4** — `AppController` wires store/providers/engine + the ~3s capture loop
       (DispatcherQueueTimer, all engine/EF access on the UI thread), implements
-      `IShellActions`, and `App.OnLaunched` registers toasts + starts it. **Builds
-      clean.** ⚠️ **OPEN ISSUE:** launched exe stays alive ~8s but creates **no**
-      `%LOCALAPPDATA%\AccountaBall` dir and **no** crash log — so `OnLaunched`
-      likely isn't reaching `AppController` (suspect: bootstrapper/entry not
-      invoking `OnLaunched`, or an early throw before the logger). Added a crash
-      logger + non-fatal `Register()` guard; **next step: find why no dir/log
-      appears** (confirm OnLaunched runs; check the generated Main / bootstrap; run
-      the exe in a console to see stderr).
+      `IShellActions`, and `App.OnLaunched` registers toasts + starts it. **Launch
+      verified:** the Welcome card renders (Set up a session / Just observe), the
+      ball shows, and the store writes `%LOCALAPPDATA%\AccountaBall\accountaball.db`
+      + `settings.json`. **Root cause of the earlier "no dir/log" hang:** the
+      unpackaged WindowsAppSDK bootstrapper couldn't find the Windows App Runtime,
+      so the generated `Main` threw in `XamlCheckProcessRequirements()`/bootstrap
+      **before** `OnLaunched` (hence no log). **Fix:** bundle the runtime via
+      `WindowsAppSDKSelfContained` + `SelfContained` in the csproj — which also
+      requires building with an explicit `-p:Platform=x64` (self-contained rejects
+      `AnyCPU`). The crash logger + non-fatal `Register()` guard are kept.
 - [ ] **M4.5** — manual "feel it" QA pass (capture reads focused window, no-activate
       holds, cards size right, toasts fire, full on→ambiguous→off→break→complete loop).
 

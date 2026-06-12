@@ -14,6 +14,10 @@
     <!-- Unpackaged (no MSIX) for dev-loop simplicity; M5 adds packaging. -->
     <WindowsPackageType>None</WindowsPackageType>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- Bundle the Windows App SDK runtime so the app runs on machines without the
+         Windows App Runtime installed (and for the M5 portable zip). Requires a RID. -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
