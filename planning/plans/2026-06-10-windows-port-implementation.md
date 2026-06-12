@@ -67,8 +67,15 @@ the repo owner — Core is treated read-only on Windows).
 
 ### M4 — WinUI 3 shell (`AccountaBall.App`, unpackaged) — IN PROGRESS
 - [x] **M4.0** — project scaffold, `app.manifest` (PerMonitorV2). Launches.
-- [x] **M4.1** — `FloatingPanel`: borderless, always-on-top, off-switcher,
-      `WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW`, DPI-aware per-`AppPhase` resize.
+- [x] **M4.1** — `FloatingPanel`: borderless, always-on-top, off-switcher
+      (`WS_EX_TOOLWINDOW`), DPI-aware per-`AppPhase` resize. **Deviation from macOS
+      parity:** `WS_EX_NOACTIVATE` was REMOVED — on a WinUI 3 window it suppresses
+      hover/click input to the XAML island (the ball/cards became un-hoverable and the
+      Setup text box couldn't be focused to type). The panel is now a normal activatable
+      floating tool window: clicking it focuses it. A `WM_MOUSEACTIVATE`/`MA_NOACTIVATE`
+      subclass was tried but does NOT stop the island's input bridge from activating, so
+      strict no-focus-steal for the passive ball remains a TODO (would need the bridge
+      subclassed).
 - [x] **M4.2** — `BallView` (basketball, per-`BallState` faces incl. Observing);
       round/rounded HWND clip via `SetWindowRgn`. Launch-verified.
 - [x] **M4.3** — `RootCoordinator` + code-first phase cards (`IPhaseView`/

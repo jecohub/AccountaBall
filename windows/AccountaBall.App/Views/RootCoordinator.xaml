@@ -11,5 +11,11 @@
         <ContentControl x:Name="CardHost"
                         HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        <!-- Title-bar-style close (quit) button, shown on card phases. -->
+        <Button x:Name="CloseButton" Visibility="Collapsed"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,10,10,0" Width="30" Height="30" Padding="0"
+                FontFamily="Segoe MDL2 Assets" Content="&#xE8BB;" FontSize="12"
+                ToolTipService.ToolTip="Quit AccountaBall" />
     </Grid>
 </UserControl>

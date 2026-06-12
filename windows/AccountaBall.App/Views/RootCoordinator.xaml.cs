@@ -26,6 +26,7 @@ public sealed partial class RootCoordinator : UserControl
     public RootCoordinator()
     {
         this.InitializeComponent();
+        CloseButton.Click += (_, _) => _actions.ExitApp();
     }
 
     public void SetActions(IShellActions actions) => _actions = actions;
@@ -40,12 +41,14 @@ public sealed partial class RootCoordinator : UserControl
             Ball.Visibility = Visibility.Visible;
             CardHost.Content = null;
             CardHost.Visibility = Visibility.Collapsed;
+            CloseButton.Visibility = Visibility.Collapsed;   // would be clipped by the round ball
             return;
         }
 
         Ball.Visibility = Visibility.Collapsed;
         CardHost.Visibility = Visibility.Visible;
         CardHost.Content = CardFor(state);
+        CloseButton.Visibility = Visibility.Visible;
     }
 
     private UIElement CardFor(AppState state) => state.AppPhase switch

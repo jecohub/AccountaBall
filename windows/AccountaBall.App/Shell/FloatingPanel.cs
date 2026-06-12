@@ -31,7 +31,10 @@ public sealed class FloatingPanel
 
         ConfigurePresenter();
         _appWindow.IsShownInSwitchers = false;   // off Alt-Tab (TOOLWINDOW also enforces this)
-        NativeWindow.AddExStyles(_hwnd, NativeWindow.WS_EX_NOACTIVATE | NativeWindow.WS_EX_TOOLWINDOW);
+        // TOOLWINDOW only — NOT WS_EX_NOACTIVATE, which suppresses hover/click input on
+        // the WinUI island (see NativeWindow). The panel is a normal activatable
+        // floating tool window.
+        NativeWindow.AddExStyles(_hwnd, NativeWindow.WS_EX_TOOLWINDOW);
     }
 
     private void ConfigurePresenter()

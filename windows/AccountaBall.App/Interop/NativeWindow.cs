@@ -3,11 +3,17 @@ using System.Runtime.InteropServices;
 
 namespace AccountaBall.App.Interop;
 
-/// Win32 glue for the floating ball: apply the extended window styles WinUI's
-/// AppWindow/Presenter can't (<c>WS_EX_NOACTIVATE</c> so clicking the ball never
-/// steals focus from the app being watched, <c>WS_EX_TOOLWINDOW</c> to keep it off
-/// the Alt-Tab switcher and taskbar). Port of the macOS NSPanel
-/// nonactivatingPanel / .floating-level behavior.
+/// Win32 glue for the floating ball: apply the extended window style WinUI's
+/// AppWindow/Presenter can't (<c>WS_EX_TOOLWINDOW</c>, to keep the ball off the
+/// Alt-Tab switcher and taskbar) and clip the window to the round/rounded shape.
+///
+/// NOTE on no-activate: the macOS original is a non-activating NSPanel, but we do
+/// NOT set <c>WS_EX_NOACTIVATE</c> here. On a WinUI 3 window that ex-style suppresses
+/// pointer input to the XAML island — the ball/cards stop receiving hover and clicks
+/// (and the Setup text box can't be focused to type). So the panel behaves like a
+/// normal activatable floating tool window: clicking it focuses it. Restoring strict
+/// no-focus-steal for the passive ball would need the island input bridge subclassed,
+/// which a plain <c>WM_MOUSEACTIVATE</c>/<c>MA_NOACTIVATE</c> handler does not achieve.
 internal static class NativeWindow
 {
     private const int GWL_EXSTYLE = -20;

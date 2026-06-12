@@ -96,21 +96,4 @@ internal static class UiKit
         b.Click += onClick;
         return b;
     }
-
-    /// A quiet, borderless text button for low-emphasis actions (e.g. Quit).
-    public static Button Tertiary(string text, RoutedEventHandler onClick)
-    {
-        var b = new Button
-        {
-            Content = text,
-            Padding = new Thickness(8, 4, 8, 4),
-            Background = Brush("#00000000"),
-            BorderThickness = new Thickness(0),
-            Foreground = Brush("#86868B"),
-            FontSize = 12,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        b.Click += onClick;
-        return b;
-    }
 }

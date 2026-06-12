@@ -17,7 +17,6 @@ public sealed class WelcomeView : UserControl, IPhaseView
         v.Children.Add(UiKit.Secondary("Just observe (FreeBall)", (_, _) => actions.StartFreeBall()));
         if (!string.IsNullOrEmpty(state.SetupHint))
             v.Children.Add(UiKit.Caption(state.SetupHint!));
-        v.Children.Add(UiKit.Tertiary("Quit AccountaBall", (_, _) => actions.ExitApp()));
         Content = UiKit.Card(v);
     }
 }
