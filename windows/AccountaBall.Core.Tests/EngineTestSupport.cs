@@ -35,6 +35,10 @@ internal class AlwaysOnTaskAI : IAiService
     public virtual Task<bool> HealthCheckAsync() => Task.FromResult(true);
     public Task<IReadOnlyList<PerTaskComment>> SummarizeSessionAsync(IReadOnlyList<PerTaskSessionInput> perTask)
         => Task.FromResult<IReadOnlyList<PerTaskComment>>(Array.Empty<PerTaskComment>());
+    public virtual Task<FreeBallSummary> SummarizeFreeBallAsync(
+        IReadOnlyList<FreeBallTranscriptEntry> transcript, IReadOnlyList<FreeBallPastRecap> pastRecaps)
+        => Task.FromResult(new FreeBallSummary("", Array.Empty<CategorySpan>(), "",
+            Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>()));
 }
 
 /// Returns a fixed excuse verdict (classifyMulti off-task).

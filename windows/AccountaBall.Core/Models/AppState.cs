@@ -38,6 +38,7 @@ public sealed class AppState
     public DateTimeOffset? FreeBallStartTime { get; set; }
     public bool FreeBallSummarizing { get; set; }
     public bool FreeBallViewingHistory { get; set; }
+    public FreeBallRecap? FreeBallRecap { get; set; }
 
     private int _driftLimit = 3;
 

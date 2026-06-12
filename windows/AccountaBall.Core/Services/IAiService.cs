@@ -33,4 +33,10 @@ public interface IAiService
     /// Per-task prose for the end-of-session breakdown (local comparisons are
     /// computed by the caller; the model writes the human-readable comment).
     Task<IReadOnlyList<PerTaskComment>> SummarizeSessionAsync(IReadOnlyList<PerTaskSessionInput> perTask);
+
+    /// Passive-mode summary (the ONLY AI call FreeBall makes, at End Session):
+    /// reads this session's deduped transcript + distilled past recaps, returns a
+    /// narrative + categorized time breakdown + cross-session insight + context.
+    Task<FreeBallSummary> SummarizeFreeBallAsync(
+        IReadOnlyList<FreeBallTranscriptEntry> transcript, IReadOnlyList<FreeBallPastRecap> pastRecaps);
 }

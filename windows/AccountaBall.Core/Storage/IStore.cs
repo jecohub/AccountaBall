@@ -15,6 +15,8 @@ public interface IStore
     void AddKnowledgeTask(KnowledgeTask knowledgeTask);
     IReadOnlyList<KnowledgeTask> KnowledgeTasks { get; }
     void DeleteAllowance(Allowance allowance);
+    void AddFreeBallSession(FreeBallSession session);
+    IReadOnlyList<FreeBallSession> FreeBallSessions { get; }
     void Save();
 }
 
@@ -23,6 +25,7 @@ public sealed class InMemoryStore : IStore
 {
     private readonly List<WorkSession> _sessions = new();
     private readonly List<KnowledgeTask> _knowledgeTasks = new();
+    private readonly List<FreeBallSession> _freeBallSessions = new();
 
     public void AddSession(WorkSession session) => _sessions.Add(session);
     public void AddKnowledgeTask(KnowledgeTask knowledgeTask) => _knowledgeTasks.Add(knowledgeTask);
@@ -32,6 +35,9 @@ public sealed class InMemoryStore : IStore
     {
         foreach (var kt in _knowledgeTasks) kt.Allowances.Remove(allowance);
     }
+
+    public void AddFreeBallSession(FreeBallSession session) => _freeBallSessions.Add(session);
+    public IReadOnlyList<FreeBallSession> FreeBallSessions => _freeBallSessions;
 
     public void Save() { /* in-memory: relationship lists are the source of truth */ }
 
