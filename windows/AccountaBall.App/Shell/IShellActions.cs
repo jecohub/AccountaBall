@@ -33,6 +33,9 @@ public interface IShellActions
     void ViewFreeBallHistory();
     void CloseFreeBallHistory();
 
+    // Tapping the compact ball opens its control card (so the user can act on it).
+    void BallTapped();
+
     // Quit the app
     void ExitApp();
 }

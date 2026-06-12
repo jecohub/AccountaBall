@@ -27,6 +27,7 @@ public sealed partial class RootCoordinator : UserControl
     {
         this.InitializeComponent();
         CloseButton.Click += (_, _) => _actions.ExitApp();
+        Ball.Tapped += (_, _) => _actions.BallTapped();
     }
 
     public void SetActions(IShellActions actions) => _actions = actions;
@@ -103,5 +104,6 @@ internal sealed class NullShellActions : IShellActions
     public void EndFreeBall() { }
     public void ViewFreeBallHistory() { }
     public void CloseFreeBallHistory() { }
+    public void BallTapped() { }
     public void ExitApp() { }
 }

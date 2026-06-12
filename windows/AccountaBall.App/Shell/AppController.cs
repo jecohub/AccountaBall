@@ -266,6 +266,23 @@ public sealed class AppController : IShellActions
         RenderUi();
     }
 
+    public void BallTapped()
+    {
+        // The compact ball is just a status indicator — tapping it opens the card
+        // where the user can actually act (end FreeBall / see session progress).
+        switch (_state.AppPhase)
+        {
+            case AppPhase.FreeBall:
+                _state.AppPhase = AppPhase.FreeBallLog;
+                RenderUi();
+                break;
+            case AppPhase.Session:
+                _state.AppPhase = AppPhase.Progress;
+                RenderUi();
+                break;
+        }
+    }
+
     public void ExitApp()
     {
         // Stop the capture loop before tearing down so no tick fires mid-exit.
