@@ -44,6 +44,14 @@ public sealed class SqliteStore : IStore, IDisposable
 
     public void AddSession(WorkSession session) => _db.Sessions.Add(session);
 
+    /// Past declared sessions (with their timeline + check-log), for the history
+    /// browser. Not on the Core <see cref="IStore"/> — App-layer read only.
+    public IReadOnlyList<WorkSession> Sessions =>
+        _db.Sessions
+            .Include(s => s.Entries)
+            .Include(s => s.Justifications)
+            .ToList();
+
     public void AddKnowledgeTask(KnowledgeTask knowledgeTask) => _db.KnowledgeTasks.Add(knowledgeTask);
 
     public IReadOnlyList<KnowledgeTask> KnowledgeTasks =>

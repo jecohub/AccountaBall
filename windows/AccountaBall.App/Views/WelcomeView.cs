@@ -15,6 +15,7 @@ public sealed class WelcomeView : UserControl, IPhaseView
         v.Children.Add(UiKit.Body("Tell me what you're working on and I'll watch your screen to keep you honest."));
         v.Children.Add(UiKit.Primary("Set up a session", (_, _) => actions.OpenSetup()));
         v.Children.Add(UiKit.Secondary("Just observe (FreeBall)", (_, _) => actions.StartFreeBall()));
+        v.Children.Add(UiKit.Secondary("History", (_, _) => actions.ViewFreeBallHistory()));
         if (!string.IsNullOrEmpty(state.SetupHint))
             v.Children.Add(UiKit.Caption(state.SetupHint!));
         Content = UiKit.Card(v);

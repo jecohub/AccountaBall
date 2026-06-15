@@ -1,5 +1,10 @@
 namespace AccountaBall.App.Shell;
 
+/// One row in the combined history browser — a past declared Session or FreeBall run.
+/// <paramref name="Type"/> is "Session" or "FreeBall"; <paramref name="Summary"/> is the
+/// narrative (FreeBall) or a derived one-liner (Session).
+public sealed record HistoryEntry(string Type, System.DateTimeOffset Date, string Summary, bool Pending);
+
 /// The actions the phase views can invoke. Implemented by the App-layer host
 /// (M4.4), which routes them to the engine + AppState. Keeping views behind this
 /// interface lets them stay free of engine/store references.
@@ -34,8 +39,9 @@ public interface IShellActions
     void ViewFreeBallHistory();
     void CloseFreeBallHistory();
 
-    /// Past FreeBall sessions (newest first) for the history browser.
-    System.Collections.Generic.IReadOnlyList<AccountaBall.Core.Models.FreeBallRecap> FreeBallHistory();
+    /// Combined past runs (declared Sessions + FreeBall), newest first, for the
+    /// history browser shown from the Welcome card.
+    System.Collections.Generic.IReadOnlyList<HistoryEntry> History();
 
     // Tapping the compact ball opens its control card (so the user can act on it).
     void BallTapped();

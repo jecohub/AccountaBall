@@ -109,6 +109,45 @@ safety timeout. Two more interop bugs, both fixed (in `GraphicsCaptureService`):
    *continuous* off-task screen — earlier "no prompt" runs were the user alt-tabbing
    between LinkedIn and VS Code, resetting the streak each time.)
 
+### Session log — 2026-06-15 (no-focus-steal, draggable panel, combined history)
+Three M4.5 follow-ups (App/Platform only; builds win-x64 0/0):
+
+1. **No-focus-steal for the passive ball (the open M4.5 TODO) — RESOLVED + verified.**
+   The earlier-abandoned `WS_EX_NOACTIVATE` turned out to be the right tool: the prior
+   "it kills island input" conclusion was **wrong**. Empirically (automated test below),
+   `WS_EX_NOACTIVATE` blocks foreground *activation* but does **not** block the WinUI
+   island from receiving the click — the ball stays fully tappable. (Dead ends ruled out
+   first, all confirmed not to work via the test harness: a top-level
+   `WM_MOUSEACTIVATE`→`MA_NOACTIVATE` subclass; additionally subclassing the child island
+   `Microsoft.UI.Content.DesktopChildSiteBridge`; and a deferred `WM_ACTIVATE` focus
+   bounce-back via `AttachThreadInput`+`SetForegroundWindow` — WinUI activates on
+   pointer-press bypassing `WM_MOUSEACTIVATE`, and cross-process foreground hand-back is
+   blocked by the foreground lock / re-grabbed when the tap opens a card.)
+   **Final impl:** `NativeWindow.SetNoActivate(hwnd, on)` toggles `WS_EX_NOACTIVATE`;
+   `FloatingPanel.ResizeFor` calls it per phase — **on for the compact ball**
+   (Idle/Session/FreeBall), **off for cards** (Setup text box needs keyboard focus;
+   cards are unchanged from the previously-working state — they never had the style).
+   ✅ **VERIFIED 2026-06-15** by an automated harness (UIA-drive into FreeBall →
+   ball; Notepad as the foreground reference; synthesized click on the ball): foreground
+   **stayed on Notepad**, the **tap still opened the FreeBall card**, and the card's
+   ex-style had `NOACTIVATE` cleared. (Human spot-check of Setup typing still advisable,
+   but cards are behaviorally identical to before this change.)
+2. **Draggable panel that stays put.** New `Shell/WindowDrag.cs` attaches to the ball
+   and `CardHost`: defers pointer capture until the cursor moves past a 4px threshold
+   (so a plain click still fires the ball Tapped / card buttons), then moves the window
+   to `GetCursorPos() - grabOffset` (absolute-cursor math, no moving-frame feedback).
+   `FloatingPanel` gained `Position`/`MoveTo` (work-area clamped) and a `_userMoved`
+   flag — once the user drags, `ResizeFor` **stops re-anchoring to top-right** so the
+   panel keeps its position across phase changes (cards grow from the current top-left).
+3. **Combined history moved to the Welcome card.** Welcome now has a **"History"**
+   button (→ existing `AppPhase.FreeBallHistory`, since `AppPhase` is read-only Core).
+   `IShellActions.History()` (replacing `FreeBallHistory()`) merges declared **Session**
+   + **FreeBall** runs newest-first as `HistoryEntry(Type, Date, Summary, Pending)`.
+   FreeBall summary = `Narrative`; Session summary is **derived** from the persisted
+   `WorkSession` (`SqliteStore.Sessions` getter, Platform-only) as
+   `"{tasks} · {min} min · {k} off-task"` (no narrative is persisted for declared
+   sessions). `FreeBallCardView`'s history case renders `[Type] · date` + summary.
+
 ### Session log — 2026-06-15 (FreeBall wired end-to-end; Core M2.5/M2.6 pulled)
 The Mac pushed the rest of Core to `origin/master`: `ab96886` (M2.6 FreeBall engine
 + models + utils), `e453157` (M2.5 completion/recap/match — "Core complete"), on top
@@ -225,11 +264,11 @@ Then built the **in-scope Platform + App glue** for FreeBall:
       (Stack Overflow → AMBIGUOUS, not OFFTASK). **Still needs a human at the keyboard:**
       (1) **WGC real-capture validation** — confirm `GraphicsCaptureService` actually
       yields a frame whose OCR text feeds the classifier (the M3.3 open unknown; only
-      exercised once a session is running); (2) **strict no-focus-steal is currently a
-      TODO** — `WS_EX_NOACTIVATE` had to be dropped (it killed hover/typing), so the panel
-      activates on click like a normal window; restoring the macOS non-activating feel
-      needs the island input bridge subclassed (a plain `WM_MOUSEACTIVATE`/`MA_NOACTIVATE`
-      handler did not work); (3) cards size right per phase; (4) toasts fire on a confirmed
+      exercised once a session is running); (2) ✅ **strict no-focus-steal — DONE**
+      (2026-06-15 session log above): `WS_EX_NOACTIVATE` toggled per-phase (on for the
+      passive ball, off for cards) keeps the foreground app focused on a ball click while
+      the ball stays tappable — verified by an automated harness. The old "it kills island
+      input" claim was wrong; (3) cards size right per phase; (4) toasts fire on a confirmed
       drift; (5) the full on→ambiguous→off→break→complete loop + a FreeBall record/recap
       feel like the Mac.
 

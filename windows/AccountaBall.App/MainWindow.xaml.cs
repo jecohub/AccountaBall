@@ -19,5 +19,6 @@ public sealed partial class MainWindow : Window
         this.InitializeComponent();
         Panel = new FloatingPanel(this);
         Panel.ResizeFor(AppPhase.Idle);
+        Root.AttachWindow(Panel);
     }
 }

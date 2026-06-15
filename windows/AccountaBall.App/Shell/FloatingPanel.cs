@@ -23,6 +23,10 @@ public sealed class FloatingPanel
     /// Margin from the work-area edges, in logical units.
     private const double EdgeMargin = 24;
 
+    /// Set once the user drags the panel — after that we stop re-anchoring to the
+    /// top-right on phase changes so it stays where they put it.
+    private bool _userMoved;
+
     public FloatingPanel(Window window)
     {
         _window = window;
@@ -32,9 +36,27 @@ public sealed class FloatingPanel
         ConfigurePresenter();
         _appWindow.IsShownInSwitchers = false;   // off Alt-Tab (TOOLWINDOW also enforces this)
         // TOOLWINDOW only — NOT WS_EX_NOACTIVATE, which suppresses hover/click input on
-        // the WinUI island (see NativeWindow). The panel is a normal activatable
-        // floating tool window.
+        // the WinUI island (see NativeWindow). No-focus-steal is done at WM_MOUSEACTIVATE
+        // instead (toggled per-phase in ResizeFor), which keeps island input working.
         NativeWindow.AddExStyles(_hwnd, NativeWindow.WS_EX_TOOLWINDOW);
+    }
+
+    /// Current window top-left, in physical screen pixels (AppWindow coordinate space).
+    public Windows.Graphics.PointInt32 Position => _appWindow.Position;
+
+    /// Move the window to a new top-left (physical px), clamped to the work area, and
+    /// remember that the user repositioned it. Called by the drag helper.
+    public void MoveTo(int x, int y)
+    {
+        var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest);
+        if (area is not null)
+        {
+            var wa = area.WorkArea;
+            x = Math.Clamp(x, wa.X, Math.Max(wa.X, wa.X + wa.Width - _appWindow.Size.Width));
+            y = Math.Clamp(y, wa.Y, Math.Max(wa.Y, wa.Y + wa.Height - _appWindow.Size.Height));
+        }
+        _userMoved = true;
+        _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
     }
 
     private void ConfigurePresenter()
@@ -59,13 +81,22 @@ public sealed class FloatingPanel
 
         _appWindow.Resize(new Windows.Graphics.SizeInt32(pw, ph));
 
-        var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest);
-        if (area is not null)
+        // The passive ball declines activation (no focus steal); cards activate so the
+        // Setup text box can take keyboard focus.
+        NativeWindow.SetNoActivate(_hwnd, IsCompact(phase));
+
+        // Auto-anchor to the top-right only until the user drags it somewhere — after
+        // that, keep their position (the card just grows from its current top-left).
+        if (!_userMoved)
         {
-            int margin = (int)Math.Round(EdgeMargin * scale);
-            int x = area.WorkArea.X + area.WorkArea.Width - pw - margin;
-            int y = area.WorkArea.Y + margin;
-            _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+            var area = DisplayArea.GetFromWindowId(_appWindow.Id, DisplayAreaFallback.Nearest);
+            if (area is not null)
+            {
+                int margin = (int)Math.Round(EdgeMargin * scale);
+                int x = area.WorkArea.X + area.WorkArea.Width - pw - margin;
+                int y = area.WorkArea.Y + margin;
+                _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+            }
         }
 
         // Clip the HWND: a circle for the compact ball, a rounded rect for cards.

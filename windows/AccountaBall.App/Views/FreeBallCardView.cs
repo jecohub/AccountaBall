@@ -45,20 +45,18 @@ public sealed class FreeBallCardView : UserControl, IPhaseView
                 break;
 
             case AppPhase.FreeBallHistory:
-                v.Children.Add(UiKit.Title("Past sessions"));
-                var history = actions.FreeBallHistory();
+                v.Children.Add(UiKit.Title("History"));
+                var history = actions.History();
                 if (history.Count == 0)
                 {
                     v.Children.Add(UiKit.Body("No past sessions yet."));
                 }
                 else
                 {
-                    foreach (var r in history)
+                    foreach (var h in history)
                     {
-                        v.Children.Add(UiKit.Body($"{r.Date.LocalDateTime:MMM d, h:mm tt} · {Mins(r.Duration)}"));
-                        v.Children.Add(UiKit.Body(string.IsNullOrWhiteSpace(r.Narrative)
-                            ? (r.RecapPending ? "(summary pending — AI was unreachable)" : "(no summary)")
-                            : r.Narrative));
+                        v.Children.Add(UiKit.Body($"[{h.Type}] · {h.Date.LocalDateTime:MMM d, h:mm tt}"));
+                        v.Children.Add(UiKit.Body(h.Summary));
                     }
                 }
                 v.Children.Add(UiKit.Primary("Close", (_, _) => actions.CloseFreeBallHistory()));
@@ -101,6 +99,4 @@ public sealed class FreeBallCardView : UserControl, IPhaseView
         v.Children.Add(UiKit.Body($"{heading}:"));
         foreach (var item in items) v.Children.Add(UiKit.Body($"  – {item}"));
     }
-
-    private static string Mins(double seconds) => $"{(int)Math.Round(seconds / 60)} min";
 }

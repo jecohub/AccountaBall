@@ -7,13 +7,12 @@ namespace AccountaBall.App.Interop;
 /// AppWindow/Presenter can't (<c>WS_EX_TOOLWINDOW</c>, to keep the ball off the
 /// Alt-Tab switcher and taskbar) and clip the window to the round/rounded shape.
 ///
-/// NOTE on no-activate: the macOS original is a non-activating NSPanel, but we do
-/// NOT set <c>WS_EX_NOACTIVATE</c> here. On a WinUI 3 window that ex-style suppresses
-/// pointer input to the XAML island — the ball/cards stop receiving hover and clicks
-/// (and the Setup text box can't be focused to type). So the panel behaves like a
-/// normal activatable floating tool window: clicking it focuses it. Restoring strict
-/// no-focus-steal for the passive ball would need the island input bridge subclassed,
-/// which a plain <c>WM_MOUSEACTIVATE</c>/<c>MA_NOACTIVATE</c> handler does not achieve.
+/// No-activate: the macOS original is a non-activating NSPanel. <c>WS_EX_NOACTIVATE</c>
+/// makes the window decline foreground activation on click — and, contrary to an earlier
+/// assumption, it does NOT block the WinUI island from receiving the click (the ball
+/// stays tappable; verified). <see cref="SetNoActivate"/> toggles it per-phase: ON for
+/// the passive ball so clicking it never steals focus from the app you're being held
+/// accountable to, OFF for cards so the Setup text box can take keyboard focus.
 internal static class NativeWindow
 {
     private const int GWL_EXSTYLE = -20;
@@ -25,6 +24,16 @@ internal static class NativeWindow
     {
         long current = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, current | styles);
+    }
+
+    /// Toggle no-focus-steal: add/remove <c>WS_EX_NOACTIVATE</c> so a click declines
+    /// foreground activation (ball) or activates normally (cards). Takes effect
+    /// immediately; the island keeps receiving pointer input either way.
+    public static void SetNoActivate(IntPtr hwnd, bool on)
+    {
+        long current = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        long next = on ? (current | WS_EX_NOACTIVATE) : (current & ~WS_EX_NOACTIVATE);
+        if (next != current) SetWindowLongPtr(hwnd, GWL_EXSTYLE, next);
     }
 
     // 64-bit-safe GetWindowLongPtr/SetWindowLongPtr. On 32-bit Windows the *Ptr
@@ -53,6 +62,14 @@ internal static class NativeWindow
     /// to the physical pixels AppWindow.Resize expects, per-monitor.
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    /// Cursor position in physical screen pixels — the same coordinate space as
+    /// AppWindow.Position/Move, used by the drag helper.
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT point);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int X; public int Y; }
 
     // --- Window region clipping (round ball / rounded cards) ---
 

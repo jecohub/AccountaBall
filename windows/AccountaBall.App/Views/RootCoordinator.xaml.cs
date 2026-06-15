@@ -32,6 +32,14 @@ public sealed partial class RootCoordinator : UserControl
 
     public void SetActions(IShellActions actions) => _actions = actions;
 
+    /// Wire window dragging: grabbing the ball or the card body repositions the
+    /// floating panel (button clicks / the ball tap still work — see WindowDrag).
+    public void AttachWindow(Shell.FloatingPanel panel)
+    {
+        Shell.WindowDrag.Attach(Ball, panel);
+        Shell.WindowDrag.Attach(CardHost, panel);
+    }
+
     /// Render the shell for the given state. Idempotent — safe to call every cycle.
     public void Render(AppState state)
     {
@@ -105,8 +113,8 @@ internal sealed class NullShellActions : IShellActions
     public void EndFreeBall() { }
     public void ViewFreeBallHistory() { }
     public void CloseFreeBallHistory() { }
-    public System.Collections.Generic.IReadOnlyList<AccountaBall.Core.Models.FreeBallRecap> FreeBallHistory()
-        => System.Array.Empty<AccountaBall.Core.Models.FreeBallRecap>();
+    public System.Collections.Generic.IReadOnlyList<HistoryEntry> History()
+        => System.Array.Empty<HistoryEntry>();
     public void BallTapped() { }
     public void ExitApp() { }
 }

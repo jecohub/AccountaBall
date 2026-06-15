@@ -358,11 +358,33 @@ public sealed class AppController : IShellActions
         RenderUi();
     }
 
-    public System.Collections.Generic.IReadOnlyList<FreeBallRecap> FreeBallHistory()
+    public System.Collections.Generic.IReadOnlyList<HistoryEntry> History()
     {
-        var outp = new System.Collections.Generic.List<FreeBallRecap>();
+        var outp = new System.Collections.Generic.List<HistoryEntry>();
+
+        // FreeBall runs — the AI narrative is the summary.
         foreach (var s in _store.FreeBallSessions)
-            if (s.EndedAt is not null) outp.Add(FreeBallRecap.FromSession(s));
+        {
+            if (s.EndedAt is null) continue;
+            var summary = !string.IsNullOrWhiteSpace(s.Narrative) ? s.Narrative
+                        : s.RecapPending ? "(summary pending — AI was unreachable)"
+                        : "(no summary)";
+            outp.Add(new HistoryEntry("FreeBall", s.EndedAt.Value, summary, s.RecapPending));
+        }
+
+        // Declared sessions — no stored narrative, so derive a one-liner from the
+        // persisted timeline (tasks worked, wall-clock minutes, off-task check count).
+        foreach (var s in _store.Sessions)
+        {
+            if (s.EndedAt is null) continue;
+            var tasks = s.TaskTitles.Count > 0 ? string.Join(", ", s.TaskTitles) : "Untitled session";
+            int mins = (int)System.Math.Round((s.EndedAt.Value - s.StartedAt).TotalMinutes);
+            int offTask = 0;
+            foreach (var j in s.Justifications) if (j.Kind == "offtask") offTask++;
+            outp.Add(new HistoryEntry("Session", s.EndedAt.Value,
+                $"{tasks} · {mins} min · {offTask} off-task", false));
+        }
+
         outp.Sort((a, b) => b.Date.CompareTo(a.Date));   // newest first
         return outp;
     }
