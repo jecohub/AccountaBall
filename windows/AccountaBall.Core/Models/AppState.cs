@@ -33,11 +33,15 @@ public sealed class AppState
     public SessionRecap? SessionRecap { get; set; }
     public double? LastSessionDuration { get; set; }
     public AllowanceConfirm? PendingAllowanceConfirm { get; set; }
+    /// AI recap per finished task, keyed by task title (written by the engine on
+    /// completion; read by the recap UI).
+    public Dictionary<string, TaskRecap> Recaps { get; } = new();
 
     // FreeBall passive-mode bridges.
     public DateTimeOffset? FreeBallStartTime { get; set; }
     public bool FreeBallSummarizing { get; set; }
     public bool FreeBallViewingHistory { get; set; }
+    public FreeBallRecap? FreeBallRecap { get; set; }
 
     private int _driftLimit = 3;
 

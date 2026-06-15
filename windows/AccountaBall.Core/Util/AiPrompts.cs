@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using AccountaBall.Core.Models;
+
 namespace AccountaBall.Core.Util;
 
 /// Shared prompt strings used by the AI provider(s). Centralised so providers stay
@@ -98,4 +104,85 @@ public static class AiPrompts
          "openThreads":["<unfinished / awaiting-reply / undecided item>"]}
         Categories should sum roughly to the session length. Output JSON only, no prose.
         """;
+
+    // MARK: - FreeBall prompt helpers (port of the AIPrompts.swift extension)
+
+    /// Build the FreeBall user prompt: this session's deduped transcript + capped
+    /// past recaps. Port of `buildFreeBallPrompt`.
+    public static string BuildFreeBallPrompt(
+        IReadOnlyList<FreeBallTranscriptEntry> transcript, IReadOnlyList<FreeBallPastRecap> pastRecaps)
+    {
+        var body = string.Join("\n\n---\n\n", transcript.Select(e =>
+            $"[{(int)Math.Round(e.Seconds / 60.0, MidpointRounding.AwayFromZero)}m on screen]\n{e.Text}"));
+        var prompt = $"This session — what was on screen:\n\n{body}";
+        if (pastRecaps.Count > 0)
+        {
+            var pastBlock = string.Join("\n", pastRecaps.Select((r, i) =>
+            {
+                var cats = string.Join(", ", r.Categories.Select(c => $"{c.Label} {c.Minutes}m"));
+                var threads = r.OpenThreads.Count == 0 ? "" : $" Open: {string.Join("; ", r.OpenThreads)}";
+                return $"Session {i + 1}: {r.Narrative} [{cats}] Insight: {r.Insight}{threads}";
+            }));
+            prompt += $"\n\n---\n\nYour past sessions (for the insight; do not re-summarize them):\n{pastBlock}";
+        }
+        return prompt;
+    }
+
+    /// Parse the AI's JSON into a FreeBallSummary. Returns an empty summary on any
+    /// failure. Port of `parseFreeBallSummary` (tolerant: slices to the outermost
+    /// braces, ignores missing keys, accepts int or double minutes).
+    public static FreeBallSummary ParseFreeBallSummary(string json)
+    {
+        var empty = new FreeBallSummary("", Array.Empty<CategorySpan>(), "",
+            Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());
+        if (string.IsNullOrEmpty(json)) return empty;
+        var open = json.IndexOf('{');
+        var close = json.LastIndexOf('}');
+        if (open < 0 || close < open) return empty;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json.Substring(open, close - open + 1));
+            var root = doc.RootElement;
+
+            string Str(string key) =>
+                root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : "";
+
+            List<string> Strings(string key)
+            {
+                var list = new List<string>();
+                if (root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var e in v.EnumerateArray())
+                    {
+                        if (e.ValueKind != JsonValueKind.String) continue;
+                        var s = e.GetString();
+                        if (!string.IsNullOrEmpty(s)) list.Add(s);
+                    }
+                }
+                return list;
+            }
+
+            var cats = new List<CategorySpan>();
+            if (root.TryGetProperty("categories", out var c) && c.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var e in c.EnumerateArray())
+                {
+                    if (e.ValueKind != JsonValueKind.Object) continue;
+                    if (!e.TryGetProperty("label", out var lv) || lv.ValueKind != JsonValueKind.String) continue;
+                    var mins = 0;
+                    if (e.TryGetProperty("minutes", out var mv) && mv.ValueKind == JsonValueKind.Number)
+                        mins = mv.TryGetInt32(out var mi) ? mi : (int)mv.GetDouble();
+                    cats.Add(new CategorySpan(lv.GetString()!, mins));
+                }
+            }
+
+            return new FreeBallSummary(Str("narrative"), cats, Str("insight"),
+                Strings("workingOn"), Strings("people"), Strings("codeContext"), Strings("openThreads"));
+        }
+        catch
+        {
+            return empty;
+        }
+    }
 }

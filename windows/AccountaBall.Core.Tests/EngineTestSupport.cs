@@ -26,7 +26,7 @@ internal class AlwaysOnTaskAI : IAiService
         => Task.FromResult<MultiTaskResult>(new MultiTaskResult.OnTask(0, ""));
     public virtual Task<ExcuseVerdict> EvaluateExcuseAsync(string excuse, IReadOnlyList<TaskItem> tasks, string screenText)
         => Task.FromResult(new ExcuseVerdict(false, null, ""));
-    public Task<TaskRecap> SummarizeTaskAsync(string title, string context, IReadOnlyList<string> steps,
+    public virtual Task<TaskRecap> SummarizeTaskAsync(string title, string context, IReadOnlyList<string> steps,
         double durationSeconds, TaskPreviousRun? previous)
         => Task.FromResult(new TaskRecap("", Array.Empty<string>(), durationSeconds, null));
     public Task<(string Id, bool Confident)?> MatchTaskAsync(string query,
@@ -35,6 +35,10 @@ internal class AlwaysOnTaskAI : IAiService
     public virtual Task<bool> HealthCheckAsync() => Task.FromResult(true);
     public Task<IReadOnlyList<PerTaskComment>> SummarizeSessionAsync(IReadOnlyList<PerTaskSessionInput> perTask)
         => Task.FromResult<IReadOnlyList<PerTaskComment>>(Array.Empty<PerTaskComment>());
+    public virtual Task<FreeBallSummary> SummarizeFreeBallAsync(
+        IReadOnlyList<FreeBallTranscriptEntry> transcript, IReadOnlyList<FreeBallPastRecap> pastRecaps)
+        => Task.FromResult(new FreeBallSummary("", Array.Empty<CategorySpan>(), "",
+            Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>()));
 }
 
 /// Returns a fixed excuse verdict (classifyMulti off-task).
