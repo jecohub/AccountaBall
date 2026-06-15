@@ -74,7 +74,8 @@ public sealed class ProgressView : UserControl, IPhaseView
             var mark = t.IsComplete ? "✓" : "•";
             v.Children.Add(UiKit.Body($"{mark} {t.Task} — {(int)(t.TimeOnTask / 60)}m"));
         }
-        v.Children.Add(UiKit.Secondary("Keep watching", (_, _) => actions.ResumeWatching(false)));
+        v.Children.Add(UiKit.Primary("Keep watching", (_, _) => actions.ResumeWatching(false)));
+        v.Children.Add(UiKit.Secondary("End session", (_, _) => actions.EndSession()));
         Content = UiKit.Card(v);
     }
 }

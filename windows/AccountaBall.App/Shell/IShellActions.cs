@@ -11,6 +11,7 @@ public interface IShellActions
     void RemoveTask(int index);
     void SetDriftLimit(int limit);
     void StartSession();
+    void EndSession();
 
     // Ambiguous resolution (ask once)
     void AcceptAmbiguous(string reason);
@@ -32,6 +33,9 @@ public interface IShellActions
     void EndFreeBall();
     void ViewFreeBallHistory();
     void CloseFreeBallHistory();
+
+    /// Past FreeBall sessions (newest first) for the history browser.
+    System.Collections.Generic.IReadOnlyList<AccountaBall.Core.Models.FreeBallRecap> FreeBallHistory();
 
     // Tapping the compact ball opens its control card (so the user can act on it).
     void BallTapped();

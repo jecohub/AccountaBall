@@ -28,6 +28,7 @@ public sealed class AppController : IShellActions
 
     private readonly AppState _state;
     private readonly AccountabilityEngine _engine;
+    private readonly FreeBallEngine _freeBall;
     private readonly IScreenCapture _capture;
     private readonly IOcrService _ocr;
     private readonly IAiService _ai;
@@ -35,6 +36,7 @@ public sealed class AppController : IShellActions
 
     private DispatcherQueueTimer? _timer;
     private bool _busy;
+    private bool _recapFinalized;
     private AppPhase? _lastPhase;
 
     public AppController(MainWindow window)
@@ -50,6 +52,7 @@ public sealed class AppController : IShellActions
         _ocr = new WindowsMediaOcrService();
 
         _engine = new AccountabilityEngine(_state, _ai, new ToastNotifier()) { Store = _store };
+        _freeBall = new FreeBallEngine(_state, _ai) { Store = _store };
     }
 
     public void Start()
@@ -65,6 +68,7 @@ public sealed class AppController : IShellActions
         _timer.Interval = TimeSpan.FromSeconds(AppConstants.CycleSeconds);
         _timer.Tick += async (_, _) => await TickAsync();
         _timer.Start();
+        App.Log($"controller started: capture loop @ {AppConstants.CycleSeconds}s cadence");
 
         // Proactive provider probe so the "needs Ollama" card shows up front
         // (mirrors the macOS launch-on-local-Ollama hint).
@@ -95,15 +99,22 @@ public sealed class AppController : IShellActions
                 return;
             }
             if (!_state.IsCapturing) return;
+            // FreeBall passive mode: record every cycle, run NO AI until End Session.
+            if (_freeBall.CurrentSession is not null)
+            {
+                await FreeBallTickAsync();
+                return;
+            }
             // Accountability classification only runs inside a declared session.
-            // FreeBall observes without AI (full recording lands with Core M2.6).
             if (_engine.CurrentSession is null) return;
 
             await AccountabilityTickAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            // A single bad cycle must never take the loop (or app) down.
+            // A single bad cycle must never take the loop (or app) down — but log
+            // it, otherwise a broken capture/OCR/classify stage is invisible.
+            App.Log($"tick error: {ex}");
         }
         finally
         {
@@ -114,10 +125,20 @@ public sealed class AppController : IShellActions
     private async Task AccountabilityTickAsync()
     {
         using var frame = await _capture.CaptureForegroundAsync();
-        if (frame is null) return;
+        if (frame is null)
+        {
+            App.Log("cycle: capture returned null (no frame) — skipping");
+            return;
+        }
 
         var text = await _ocr.RecognizeTextAsync(frame.Bitmap);
-        if (string.IsNullOrWhiteSpace(text)) return;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            App.Log($"cycle: OCR empty for window '{frame.WindowTitle}' — skipping");
+            return;
+        }
+
+        App.Log($"cycle: window='{frame.WindowTitle}' ocrChars={text.Length} text[0..120]=\"{Truncate(text, 120)}\"");
 
         MultiTaskResult result;
         try
@@ -129,16 +150,74 @@ public sealed class AppController : IShellActions
         {
             return;   // benign: we cancelled our own in-flight request
         }
-        catch
+        catch (Exception ex)
         {
+            App.Log($"cycle: classify failed -> AiUnavailable: {ex.Message}");
             _engine.EnterAIUnavailable();
             RenderUi();
             return;
         }
 
         _engine.ProcessCycle(result);
+        App.Log($"cycle: classify={result.GetType().Name} label=\"{ResultLabel(result)}\" -> phase={_state.AppPhase} ball={_state.BallState}");
+
+        // A DONE read that finishes the last task flips the phase to Complete
+        // (AppState.CompleteTaskAt). Build the recap before the engine session is
+        // closed, mirroring the macOS phase-watcher's finalizeSessionRecap call.
+        if (_state.AppPhase == AppPhase.Complete && !_recapFinalized)
+        {
+            await FinalizeAndCloseAsync();
+            _state.BallState = BallState.Done;
+        }
         RenderUi();
     }
+
+    /// FreeBall cycle: capture the focused window, OCR it, and hand the text to the
+    /// engine to dedup + store. Deliberately no AI here — passive mode makes its one
+    /// and only model call at End Session (<see cref="EndFreeBall"/>).
+    private async Task FreeBallTickAsync()
+    {
+        using var frame = await _capture.CaptureForegroundAsync();
+        if (frame is null) { App.Log("freeball: capture returned null — skipping"); return; }
+
+        var text = await _ocr.RecognizeTextAsync(frame.Bitmap);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            App.Log($"freeball: OCR empty for '{frame.WindowTitle}' — skipping");
+            return;
+        }
+
+        _freeBall.Ingest(text);
+        App.Log($"freeball: ingest window='{frame.WindowTitle}' chars={text.Length} cycles={_freeBall.CurrentSession?.CycleCount}");
+    }
+
+    /// Build the recap (while the engine's WorkSession is still alive) then close
+    /// that session. Idempotent via <see cref="_recapFinalized"/> so the DONE path
+    /// and a manual end can't double-finalize.
+    private async Task FinalizeAndCloseAsync()
+    {
+        if (_recapFinalized) return;
+        _recapFinalized = true;
+        try { await _engine.FinalizeSessionRecapAsync(); }
+        catch (Exception ex) { App.Log($"finalize recap error: {ex.Message}"); }
+        _engine.EndSession();
+    }
+
+    /// The AI's activity label for this read — surfaced in the cycle log because the
+    /// off-task dwell streak keys on it (a label that changes each cycle restarts the
+    /// 15s drift timer, so a screen can read OffTask forever yet never confirm).
+    private static string ResultLabel(MultiTaskResult r) => r switch
+    {
+        MultiTaskResult.OnTask o => o.Label,
+        MultiTaskResult.OffTask o => o.Label,
+        MultiTaskResult.Ambiguous a => a.Label,
+        MultiTaskResult.Done d => d.Label,
+        _ => string.Empty,
+    };
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s.Replace("\r", " ").Replace("\n", " ")
+                        : s.Substring(0, max).Replace("\r", " ").Replace("\n", " ") + "…";
 
     private async Task TryRecoverAsync()
     {
@@ -193,6 +272,22 @@ public sealed class AppController : IShellActions
         _state.SaveTasks();
         _state.StartSession();
         _engine.BeginSession(_state.Tasks);
+        _recapFinalized = false;
+        App.Log($"session started: {_state.Tasks.Count} task(s), driftLimit={_state.DriftLimit}");
+        RenderUi();
+    }
+
+    public async void EndSession()
+    {
+        // Manual end (from the Progress card). Freeze the duration before
+        // SessionStartTime is nilled, build the recap while the engine's
+        // WorkSession is still alive (M2.5), then show the Completion card.
+        if (_state.SessionStartTime is { } start)
+            _state.LastSessionDuration = (DateTimeOffset.UtcNow - start).TotalSeconds;
+        await FinalizeAndCloseAsync();   // builds SessionRecap, then closes the engine session
+        _state.EndSession();
+        _state.BallState = BallState.Done;
+        _state.AppPhase = AppPhase.Complete;
         RenderUi();
     }
 
@@ -237,20 +332,39 @@ public sealed class AppController : IShellActions
 
     public void StartFreeBall()
     {
-        _state.FreeBallStartTime = DateTimeOffset.UtcNow;
+        _freeBall.Begin();                   // opens the session record + flips to FreeBall phase
         _state.IsCapturing = true;
-        _state.AppPhase = AppPhase.FreeBall;
         _state.BallState = BallState.Observing;
+        App.Log("freeball: session started");
         RenderUi();
     }
 
-    public void EndFreeBall()
+    public async void EndFreeBall()
     {
+        // Stop the capture loop, then run the single end-of-session summarize. EndAsync
+        // synchronously flips to the FreeBallRecap "Summarizing…" state before its AI
+        // await, so render once to show the loading card, then again with the result.
         _state.IsCapturing = false;
-        _state.FreeBallSummarizing = false;
-        _state.AppPhase = AppPhase.FreeBallRecap;
         _state.BallState = BallState.Idle;
+        App.Log("freeball: ending — summarizing");
+        try
+        {
+            var pending = _freeBall.EndAsync();
+            RenderUi();
+            await pending;
+            App.Log("freeball: recap ready");
+        }
+        catch (Exception ex) { App.Log($"freeball end error: {ex.Message}"); }
         RenderUi();
+    }
+
+    public System.Collections.Generic.IReadOnlyList<FreeBallRecap> FreeBallHistory()
+    {
+        var outp = new System.Collections.Generic.List<FreeBallRecap>();
+        foreach (var s in _store.FreeBallSessions)
+            if (s.EndedAt is not null) outp.Add(FreeBallRecap.FromSession(s));
+        outp.Sort((a, b) => b.Date.CompareTo(a.Date));   // newest first
+        return outp;
     }
 
     public void ViewFreeBallHistory()

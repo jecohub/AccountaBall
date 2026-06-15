@@ -33,9 +33,114 @@ pass.
 
 The .NET solution lives in `windows/` (classic `.sln`). Core/Tests target `net8.0`;
 Platform + App target `net8.0-windows10.0.22621.0`. **The whole solution builds
-win-x64 (0 warnings / 0 errors) and 91/92 Core tests pass** (the 1 failure is a
+win-x64 (0 warnings / 0 errors) and 94/95 Core tests pass** (the 1 failure is a
 pre-existing CRLF-vs-LF assertion in `AiPromptsTests`, left to the macOS side per
-the repo owner — Core is treated read-only on Windows).
+the repo owner — Core is treated read-only on Windows). The +3 over the prior
+91/92 are the M2.5 `EngineSessionRecapTests` added below.
+
+### Session log — 2026-06-12 (capture root-cause fix + M2.5 recap)
+Triggered by a live test where a declared session **never prompted** (LinkedIn
+ignored) and the recap was empty. Two distinct problems, both now addressed:
+
+1. **The monitoring loop was failing silently AND invisibly.** `AppController`'s
+   capture tick swallowed every early-return/exception with a bare `catch {}` and
+   logged nothing, so there was no `app.log` to diagnose from. Added per-cycle
+   diagnostics (`App.Log`) for each stage: capture-null / OCR-empty / `ocrChars=…` /
+   `classify=… -> phase/ball` / classify-failure / `tick error: …`, plus
+   `controller started` and `session started` markers.
+2. **Root cause of "no prompt" = WGC/D3D interop (the open M3.3 risk) threw every
+   cycle**, so the engine never received a single frame (hence no prompts, 0 min
+   focus). The log showed two throws:
+   - `Direct3D11CaptureFramePool.CreateFreeThreaded` → `InvalidCastException: Failed
+     to create a CCW … IID 'A37624AB-…'` (WinRT `IDirect3DDevice`). Cause:
+     `Direct3D11Interop.CreateDevice` projected the device via legacy
+     `Marshal.GetObjectForIUnknown`, yielding a `__ComObject` that WindowsAppSDK's
+     CsWinRT can't marshal back as `IDirect3DDevice`. **Fix:** project through
+     `WinRT.MarshalInspectable<IDirect3DDevice>.FromAbi`.
+   - `IGraphicsCaptureItemInterop.CreateForWindow` → `ArgumentException` for a
+     non-capturable foreground window (shell/secure/elevated/zero-size). **Fix:**
+     `EnsureSessionForWindow` now returns `bool` and try/catches the build; a
+     non-capturable window skips the cycle instead of crashing the loop.
+   ⚠️ **Still needs the runtime confirmation pass** (the original M3.3 unknown):
+   that a real session now logs `ocrChars=… / classify=OffTask` and surfaces the
+   OffTask card on a sustained drift. Code builds clean; not yet human-verified.
+
+3. **M2.5 `FinalizeSessionRecapAsync` ported** (see "Next up" below) — the empty
+   recap is fixed: the Completion card now renders timeline + per-task commentary
+   (AI, local "faster/slower than last time" fallback) + `Drifts: N of L` + the
+   ◐/●/○ check log. Spec came from in-repo `planning/plans/2026-06-04-…-impl.md`
+   Task 10 + the 3-state design §3 — **no macOS clone needed.** `SummarizeCompletion`
+   (persist a `TaskCompletion` for cross-session comparison) and `ProposeMatch`
+   remain deferred.
+
+### Session log — 2026-06-12 (capture frame-delivery + STA-dispose fixes)
+After the device-CCW + `CreateForWindow` fixes above, a fresh live test **still
+never prompted** (LinkedIn ignored the whole session) and the recap was again
+empty (`Total focus: 1 min` = wall-clock only, 0 drifts). `app.log` showed every
+cycle logging `capture returned null (no frame)` with steady ~6 s gaps == the
+safety timeout. Two more interop bugs, both fixed (in `GraphicsCaptureService`):
+
+4. **WGC frame delivery on static windows.** The frame pool only raises
+   `FrameArrived` when the captured window composes a **new** frame. A still page
+   (LinkedIn sitting there) composes nothing, so "await the next FrameArrived" on a
+   long-lived per-HWND session hung until the 6 s timeout → null every cycle. The
+   one frame WGC *guarantees* is the initial one right after `StartCapture()`, but
+   the old code attached its handler **after** start, so it was always missed.
+   **Fix:** switched to the standard single-shot screenshot recipe — build a fresh
+   pool+session each cycle, attach `FrameArrived` **before** `StartCapture()`, grab
+   that guaranteed first frame, then tear the session down. The D3D device is the
+   one expensive object and is kept alive across calls. (Dropped the per-HWND
+   `EnsureSessionForWindow`/`TearDownSession` caching — recreate-per-cycle, which
+   also matches the macOS "one frame per cycle" model.)
+5. **STA wrong-thread dispose.** With #4 in place capture finally produced frames,
+   but the cycle then threw `COMException 0x8001010E ("interface marshalled for a
+   different thread")` at `GraphicsCaptureSession.Dispose()` — losing the frame.
+   The session/item are created on (and STA-bound to) the UI-thread tick, but the
+   `await … .ConfigureAwait(false)` resumed the `finally` (the `Dispose()` calls) on
+   an MTA pool thread. **Fix:** dropped `ConfigureAwait(false)` so disposal resumes
+   on the creating UI thread. (The free-threaded frame pool is agile; only the
+   session/item are apartment-bound.)
+   ✅ **HUMAN-VERIFIED 2026-06-12 21:51** — live session on LinkedIn (Brave) logged
+   real frames (`ocrChars=1024…1918`), `classify=OffTask` per cycle, and after the
+   15 s same-screen dwell flipped `phase=Session → phase=OffTask ball=OffTask` and
+   surfaced the OffTask card. Full pipeline confirmed: WGC capture → OCR → Ollama
+   classify → engine drift confirm → prompt. (Note observed in testing: the dwell
+   timer restarts on any window switch, so a drift only confirms after ~15 s of
+   *continuous* off-task screen — earlier "no prompt" runs were the user alt-tabbing
+   between LinkedIn and VS Code, resetting the streak each time.)
+
+### Session log — 2026-06-15 (FreeBall wired end-to-end; Core M2.5/M2.6 pulled)
+The Mac pushed the rest of Core to `origin/master`: `ab96886` (M2.6 FreeBall engine
++ models + utils), `e453157` (M2.5 completion/recap/match — "Core complete"), on top
+of `978c618` (the continuous-dwell fix). **Reconciled without losing the uncommitted
+Windows capture fixes**: `git checkout origin/master -- windows/AccountaBall.Core
+windows/AccountaBall.Core.Tests` (Core is read-only here; a `git reset --hard` would
+have wiped the unpushed `GraphicsCaptureService`/`Direct3D11Interop` work). Dropped the
+now-redundant local `EngineSessionRecapTests.cs` (master ships
+`EngineCompletionRecapMatchTests.cs`). Core now 112/113 green (the 1 is the known
+pre-existing CRLF `AiPromptsTests` case).
+
+Then built the **in-scope Platform + App glue** for FreeBall:
+- **M3 Platform:** `OllamaAiService.SummarizeFreeBallAsync` (builds via
+  `AiPrompts.BuildFreeBallPrompt`, system = `AiPrompts.FreeBallSystem`, parses via the
+  tolerant `AiPrompts.ParseFreeBallSummary` — refactored the HTTP helper to expose the
+  raw response string). `SqliteStore.AddFreeBallSession`/`FreeBallSessions` +
+  `AccountaBallDbContext` mapping: `FreeBallSession` (real Guid key; `WorkingOn`/`People`/
+  `CodeContext`/`OpenThreads` as EF8 primitive collections; `Categories` via
+  `OwnsMany(...).ToJson()`; `Captures` as a cascade child table; `FreeBallCapture.Seconds`
+  ignored — computed).
+- **M4 App:** `AppController` now owns a `FreeBallEngine`; `StartFreeBall` → `Begin()`,
+  a new `FreeBallTickAsync` (capture→OCR→`Ingest`, **no per-cycle AI**) runs while
+  `_freeBall.CurrentSession` is live, `EndFreeBall` → `EndAsync()` (renders the
+  "Summarizing…" state, then the result). `FreeBallCardView` renders the real recap
+  (narrative + categorized minutes + insight + working-on/people/code/open-threads) and
+  a history browser via the new `IShellActions.FreeBallHistory()` (reads
+  `Store.FreeBallSessions`).
+- ⚠️ **Schema-change gotcha:** the store uses `EnsureCreated()` (no migrations), so the
+  new FreeBall tables don't appear in a pre-existing `accountaball.db`. **Deleting the
+  dev DB** at `%LOCALAPPDATA%\AccountaBall\` is required after a Core schema change; did
+  so — app relaunched clean (EF model valid, DB rebuilt). **FreeBall end-to-end
+  (observe→ingest→summarize→recap) not yet human-verified** — next.
 
 > **Windows build note:** the machine has .NET SDK 8.0.422 **and** 10.0.301. The
 > port is pinned to the 8.x SDK via `windows/global.json` because the .NET 10 SDK
@@ -52,9 +157,14 @@ the repo owner — Core is treated read-only on Windows).
 - [x] **M3.1** — `IScreenCapture` / `IOcrService` interfaces. **Kept in Platform,
       not Core** (the engine never references frames), so Core stays untouched.
 - [x] **M3.2** — `WindowsMediaOcrService` (`Windows.Media.Ocr`, Bgra8 convert).
-- [x] **M3.3** — `GraphicsCaptureService` + `Direct3D11Interop` (WGC single-frame
-      per cycle, per-HWND session rebuild). ⚠️ Compiles, but the WGC/D3D interop
-      still needs a **real-capture validation pass** (frame actually yields text).
+- [x] **M3.3** — `GraphicsCaptureService` + `Direct3D11Interop` (WGC single-shot
+      frame per cycle: fresh pool+session each tick, handler before `StartCapture()`).
+      ⚠️ **Four interop bugs found + fixed on 2026-06-12** (device CCW projection via
+      `MarshalInspectable.FromAbi`; `CreateForWindow` ArgumentException caught → skip
+      cycle; static-window frame-delivery → single-shot recipe; STA wrong-thread
+      `Dispose` → dropped `ConfigureAwait(false)`). See the two session logs above.
+      Builds clean; **still needs the real-capture validation pass** (frame actually
+      yields OCR text → classify=OffTask) — the open runtime unknown.
 - [x] **M3.4** — `SqliteStore` + `AccountaBallDbContext` (EF Core/SQLite). Shadow
       keys + EF8 primitive collections so the Core POCOs keep zero EF annotations.
       Schema via `EnsureCreated()` (no migrations yet). Also `FileKeyValueStore`
@@ -145,12 +255,15 @@ the repo owner — Core is treated read-only on Windows).
       Dropped (macOS-only): the App-Nap activity token.
 
 **Next up:**
-- [ ] **M2.5** — completion + recap + match: `SummarizeCompletionAsync`
-      (KnowledgeTask/TaskCompletion), `FinalizeSessionRecapAsync` (the recap +
-      transparency log), `ProposeMatchAsync` (cheap + AI match). Port
-      `EngineCompletionTests`, `EngineMatchTests`, `EngineSessionRecapTests`. Wire
-      the fire-and-forget summarizeCompletion into `CompleteTask`, and the
-      allowance-confirm-on-reuse queue (`linkKnowledgeTask`/confirm/reject).
+- [~] **M2.5** — completion + recap + match. **DONE 2026-06-12:**
+      `FinalizeSessionRecapAsync` (recap + transparency log) ported + wired into the
+      `DONE` path and manual end in `AppController` (`FinalizeAndCloseAsync`, guarded
+      by `_recapFinalized`); `EngineSessionRecapTests` added (3 tests, green).
+      **Still deferred:** `SummarizeCompletionAsync` (KnowledgeTask/TaskCompletion —
+      without it the recap's "first time finishing" never advances to a real
+      faster/slower comparison across sessions), `ProposeMatchAsync` (cheap + AI
+      match), the allowance-confirm-on-reuse queue. Port `EngineCompletionTests`,
+      `EngineMatchTests` when those land.
 - [ ] **M2.6** — FreeBall engine + condenser/dedup/markdown/export + add
       `summarizeFreeBall` to `IAiService`.
 - [ ] Also deferred from M2.1/2.2: `ScreenText` + `Snapshots` (need the OCR /

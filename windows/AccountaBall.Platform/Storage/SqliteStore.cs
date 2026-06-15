@@ -54,6 +54,13 @@ public sealed class SqliteStore : IStore, IDisposable
 
     public void DeleteAllowance(Allowance allowance) => _db.Remove(allowance);
 
+    public void AddFreeBallSession(FreeBallSession session) => _db.FreeBallSessions.Add(session);
+
+    public IReadOnlyList<FreeBallSession> FreeBallSessions =>
+        _db.FreeBallSessions
+            .Include(s => s.Captures)
+            .ToList();
+
     public void Save() => _db.SaveChanges();
 
     public void Dispose() => _db.Dispose();

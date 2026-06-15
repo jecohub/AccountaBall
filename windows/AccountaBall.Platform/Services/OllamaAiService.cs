@@ -180,12 +180,33 @@ public sealed class OllamaAiService : IAiService
         return outList;
     }
 
+    // MARK: - summarizeFreeBall
+
+    public async Task<FreeBallSummary> SummarizeFreeBallAsync(
+        IReadOnlyList<FreeBallTranscriptEntry> transcript, IReadOnlyList<FreeBallPastRecap> pastRecaps)
+    {
+        var prompt = AiPrompts.BuildFreeBallPrompt(transcript, pastRecaps);
+        // ParseFreeBallSummary is deliberately tolerant (slices to the outermost
+        // braces), so hand it the raw model response rather than a pre-parsed doc.
+        var raw = await GenerateRawResponseAsync(AiPrompts.FreeBallSystem, prompt);
+        return AiPrompts.ParseFreeBallSummary(raw);
+    }
+
     // MARK: - HTTP / JSON plumbing
 
     /// POST to /api/generate with format=json + temperature 0, returning the parsed
     /// `response` payload as a JsonDocument. Throws on transport/HTTP failure so the
     /// caller (the capture loop) can route to the AI-unavailable state.
     private async Task<JsonDocument> GenerateJsonAsync(string system, string prompt)
+    {
+        var inner = await GenerateRawResponseAsync(system, prompt);
+        return JsonDocument.Parse(string.IsNullOrWhiteSpace(inner) ? "{}" : inner);
+    }
+
+    /// POST to /api/generate and return the model's raw `response` string (the JSON
+    /// body it produced). Throws on transport/HTTP failure so the caller can route to
+    /// the AI-unavailable state.
+    private async Task<string> GenerateRawResponseAsync(string system, string prompt)
     {
         var body = new
         {
@@ -200,8 +221,7 @@ public sealed class OllamaAiService : IAiService
         using var resp = await _http.PostAsJsonAsync($"{_config.Host}/api/generate", body);
         resp.EnsureSuccessStatusCode();
         using var envelope = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-        var inner = envelope.RootElement.TryGetProperty("response", out var r) ? r.GetString() ?? "{}" : "{}";
-        return JsonDocument.Parse(string.IsNullOrWhiteSpace(inner) ? "{}" : inner);
+        return envelope.RootElement.TryGetProperty("response", out var r) ? r.GetString() ?? "{}" : "{}";
     }
 
     private static bool TryGetString(JsonDocument doc, string name, out string value)

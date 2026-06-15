@@ -51,8 +51,13 @@ internal static class Direct3D11Interop
                 if (hr != 0) Marshal.ThrowExceptionForHR(hr);
                 try
                 {
-                    // The returned IInspectable projects to IDirect3DDevice.
-                    return (IDirect3DDevice)Marshal.GetObjectForIUnknown(pWinrtDevice);
+                    // The returned IInspectable must be projected through CsWinRT,
+                    // NOT the legacy Marshal.GetObjectForIUnknown — the latter yields
+                    // a plain __ComObject that WindowsAppSDK's CsWinRT cannot marshal
+                    // back as IDirect3DDevice (CreateFreeThreaded then throws
+                    // "Failed to create a CCW … IID A37624AB-…", the WinRT
+                    // IDirect3DDevice IID). FromAbi gives a properly projected object.
+                    return WinRT.MarshalInspectable<IDirect3DDevice>.FromAbi(pWinrtDevice);
                 }
                 finally { Marshal.Release(pWinrtDevice); }
             }

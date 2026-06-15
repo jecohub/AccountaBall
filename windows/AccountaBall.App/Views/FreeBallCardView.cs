@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using AccountaBall.App.Shell;
 using AccountaBall.Core.Models;
 using Microsoft.UI.Xaml.Controls;
@@ -6,12 +8,9 @@ namespace AccountaBall.App.Views;
 
 /// FreeBall card for the non-ball phases (Log / Recap / History). Port of
 /// FreeBallView + FreeBallHistoryView. Passive mode does zero AI mid-session, so
-/// the Log view just confirms it's observing; the Recap shows the end-of-session
-/// summary state; History browses past sessions.
-///
-/// NOTE: FreeBall recap/history data types land with M2.6 on the Core side; this
-/// card renders the available AppState bridges (summarizing / viewing-history) and
-/// the lifecycle actions. Flesh out the rich recap once the recap type is wired.
+/// the Log view just confirms it's observing; the Recap renders the end-of-session
+/// summary (narrative + categorized time + insight + extracted context); History
+/// browses past sessions via <see cref="IShellActions.FreeBallHistory"/>.
 public sealed class FreeBallCardView : UserControl, IPhaseView
 {
     public void Bind(AppState state, IShellActions actions)
@@ -29,16 +28,39 @@ public sealed class FreeBallCardView : UserControl, IPhaseView
 
             case AppPhase.FreeBallRecap:
                 v.Children.Add(UiKit.Title("Where your time went"));
-                v.Children.Add(UiKit.Body(state.FreeBallSummarizing
-                    ? "Summarizing this session…"
-                    : "Session summary ready."));
+                if (state.FreeBallSummarizing)
+                {
+                    v.Children.Add(UiKit.Body("Summarizing this session…"));
+                }
+                else if (state.FreeBallRecap is { } recap)
+                {
+                    RenderRecap(v, recap);
+                }
+                else
+                {
+                    v.Children.Add(UiKit.Body("No summary available."));
+                }
                 v.Children.Add(UiKit.Secondary("Past sessions", (_, _) => actions.ViewFreeBallHistory()));
                 v.Children.Add(UiKit.Primary("Done", (_, _) => actions.CloseFreeBallHistory()));
                 break;
 
             case AppPhase.FreeBallHistory:
                 v.Children.Add(UiKit.Title("Past sessions"));
-                v.Children.Add(UiKit.Body("Browse and export earlier FreeBall summaries."));
+                var history = actions.FreeBallHistory();
+                if (history.Count == 0)
+                {
+                    v.Children.Add(UiKit.Body("No past sessions yet."));
+                }
+                else
+                {
+                    foreach (var r in history)
+                    {
+                        v.Children.Add(UiKit.Body($"{r.Date.LocalDateTime:MMM d, h:mm tt} · {Mins(r.Duration)}"));
+                        v.Children.Add(UiKit.Body(string.IsNullOrWhiteSpace(r.Narrative)
+                            ? (r.RecapPending ? "(summary pending — AI was unreachable)" : "(no summary)")
+                            : r.Narrative));
+                    }
+                }
                 v.Children.Add(UiKit.Primary("Close", (_, _) => actions.CloseFreeBallHistory()));
                 break;
         }
@@ -49,4 +71,36 @@ public sealed class FreeBallCardView : UserControl, IPhaseView
             Content = UiKit.Card(v),
         };
     }
+
+    /// Render one completed FreeBall summary: narrative, the categorized time
+    /// breakdown, the cross-session insight, and any extracted context lists.
+    private static void RenderRecap(StackPanel v, FreeBallRecap r)
+    {
+        if (r.RecapPending)
+        {
+            v.Children.Add(UiKit.Body("Couldn't summarize — the AI was unreachable. Your capture was saved."));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(r.Narrative)) v.Children.Add(UiKit.Body(r.Narrative));
+
+        foreach (var c in r.Categories)
+            v.Children.Add(UiKit.Body($"• {c.Label} — {c.Minutes}m"));
+
+        if (!string.IsNullOrWhiteSpace(r.Insight)) v.Children.Add(UiKit.Body($"Insight: {r.Insight}"));
+
+        AddListSection(v, "Working on", r.WorkingOn);
+        AddListSection(v, "People", r.People);
+        AddListSection(v, "Code", r.CodeContext);
+        AddListSection(v, "Open threads", r.OpenThreads);
+    }
+
+    private static void AddListSection(StackPanel v, string heading, IReadOnlyList<string> items)
+    {
+        if (items.Count == 0) return;
+        v.Children.Add(UiKit.Body($"{heading}:"));
+        foreach (var item in items) v.Children.Add(UiKit.Body($"  – {item}"));
+    }
+
+    private static string Mins(double seconds) => $"{(int)Math.Round(seconds / 60)} min";
 }

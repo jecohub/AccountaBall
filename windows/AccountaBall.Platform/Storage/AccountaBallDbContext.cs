@@ -15,6 +15,7 @@ public sealed class AccountaBallDbContext : DbContext
 {
     public DbSet<WorkSession> Sessions => Set<WorkSession>();
     public DbSet<KnowledgeTask> KnowledgeTasks => Set<KnowledgeTask>();
+    public DbSet<FreeBallSession> FreeBallSessions => Set<FreeBallSession>();
 
     public AccountaBallDbContext(DbContextOptions<AccountaBallDbContext> options) : base(options) { }
 
@@ -78,6 +79,35 @@ public sealed class AccountaBallDbContext : DbContext
             e.Property(c => c.Summary);
             e.Property(c => c.OffTaskCount);
             e.PrimitiveCollection(c => c.Steps);
+        });
+
+        b.Entity<FreeBallSession>(e =>
+        {
+            e.HasKey(s => s.Id);                       // real Guid key (like KnowledgeTask)
+            e.Property(s => s.StartedAt);
+            e.Property(s => s.EndedAt);
+            e.Property(s => s.CycleCount);
+            e.Property(s => s.Narrative);
+            e.Property(s => s.Insight);
+            e.Property(s => s.RecapPending);
+            // Distilled context lists → JSON columns (EF8 primitive collections).
+            e.PrimitiveCollection(s => s.WorkingOn);
+            e.PrimitiveCollection(s => s.People);
+            e.PrimitiveCollection(s => s.CodeContext);
+            e.PrimitiveCollection(s => s.OpenThreads);
+            // The categorized breakdown is a small value-object list → JSON column.
+            e.OwnsMany(s => s.Categories, o => o.ToJson());
+            // The raw deduped transcript is the bulk child table.
+            e.HasMany(s => s.Captures).WithOne().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<FreeBallCapture>(e =>
+        {
+            ShadowKey(e);
+            e.Property(c => c.FirstSeenAt);
+            e.Property(c => c.LastSeenAt);
+            e.Property(c => c.Text);
+            e.Ignore(c => c.Seconds);                  // computed (no setter); not persisted
         });
     }
 

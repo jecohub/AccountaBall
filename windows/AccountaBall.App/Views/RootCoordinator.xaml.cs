@@ -93,6 +93,7 @@ internal sealed class NullShellActions : IShellActions
     public void RemoveTask(int index) { }
     public void SetDriftLimit(int limit) { }
     public void StartSession() { }
+    public void EndSession() { }
     public void AcceptAmbiguous(string reason) { }
     public void RejectAmbiguous() { }
     public void TakeBreak() { }
@@ -104,6 +105,8 @@ internal sealed class NullShellActions : IShellActions
     public void EndFreeBall() { }
     public void ViewFreeBallHistory() { }
     public void CloseFreeBallHistory() { }
+    public System.Collections.Generic.IReadOnlyList<AccountaBall.Core.Models.FreeBallRecap> FreeBallHistory()
+        => System.Array.Empty<AccountaBall.Core.Models.FreeBallRecap>();
     public void BallTapped() { }
     public void ExitApp() { }
 }
