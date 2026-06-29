@@ -138,6 +138,28 @@ public sealed class AccountabilityEngine
         store.Save();
     }
 
+    /// Persist one screen read for long-term context (de-duped like FreeBall).
+    /// Called per cycle by the Platform capture loop after OCR; never blocks classify.
+    /// Mirrors <see cref="FreeBallEngine.Ingest"/> so task-mode time builds the same
+    /// high-fidelity Capture spine.
+    public void IngestCapture(string text, string? appHint = null)
+    {
+        if (CurrentSession is not { } session || Store is not { } store) return;
+        var ts = Now();
+        var last = store.LatestCaptureForSession(session.Id);
+        if (last is not null && FreeBallDedup.IsSameScreen(last.Text, text))
+        {
+            last.LastSeenAt = ts;
+        }
+        else
+        {
+            // TaskIndex is best-known-so-far (previous cycle's classification); may be
+            // null in an active-but-taskless session. Not authoritative for this screen.
+            store.AddCapture(new Capture(ts, ts, text, "task", appHint, _state.ActiveTaskIndex, session.Id));
+        }
+        store.Save();
+    }
+
     // MARK: - Resume / break / auto-return
 
     /// Resume watching after an off-task prompt. With grace, grant an
