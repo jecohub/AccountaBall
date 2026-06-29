@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using AccountaBall.Core.Models;
 
 namespace AccountaBall.Core.Storage;
@@ -17,6 +19,9 @@ public interface IStore
     void DeleteAllowance(Allowance allowance);
     void AddFreeBallSession(FreeBallSession session);
     IReadOnlyList<FreeBallSession> FreeBallSessions { get; }
+    void AddCapture(Capture capture);
+    IReadOnlyList<Capture> Captures { get; }
+    Capture? LatestCaptureForSession(Guid sessionId);
     void Save();
 }
 
@@ -38,6 +43,13 @@ public sealed class InMemoryStore : IStore
 
     public void AddFreeBallSession(FreeBallSession session) => _freeBallSessions.Add(session);
     public IReadOnlyList<FreeBallSession> FreeBallSessions => _freeBallSessions;
+
+    private readonly List<Capture> _captures = new();
+    public void AddCapture(Capture capture) => _captures.Add(capture);
+    public IReadOnlyList<Capture> Captures => _captures;
+    public Capture? LatestCaptureForSession(Guid sessionId) =>
+        _captures.Where(c => c.SessionId == sessionId)
+                 .OrderByDescending(c => c.LastSeenAt).FirstOrDefault();
 
     public void Save() { /* in-memory: relationship lists are the source of truth */ }
 
