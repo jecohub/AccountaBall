@@ -24,6 +24,10 @@ public interface IStore
     Capture? LatestCaptureForSession(Guid sessionId);
     void AddProject(Project project);
     IReadOnlyList<Project> Projects { get; }
+    void AddContribution(Contribution contribution);
+    IReadOnlyList<Contribution> Contributions { get; }
+    void AddJudgment(Judgment judgment);
+    IReadOnlyList<Judgment> Judgments { get; }
     void Save();
 }
 
@@ -56,6 +60,14 @@ public sealed class InMemoryStore : IStore
     private readonly List<Project> _projects = new();
     public void AddProject(Project project) => _projects.Add(project);
     public IReadOnlyList<Project> Projects => _projects;
+
+    private readonly List<Contribution> _contributions = new();
+    public void AddContribution(Contribution contribution) => _contributions.Add(contribution);
+    public IReadOnlyList<Contribution> Contributions => _contributions;
+
+    private readonly List<Judgment> _judgments = new();
+    public void AddJudgment(Judgment judgment) => _judgments.Add(judgment);
+    public IReadOnlyList<Judgment> Judgments => _judgments;
 
     public void Save() { /* in-memory: relationship lists are the source of truth */ }
 

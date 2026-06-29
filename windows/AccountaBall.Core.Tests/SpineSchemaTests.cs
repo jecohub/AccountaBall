@@ -42,4 +42,17 @@ public class SpineSchemaTests
         Assert.Equal("active", p.Status);
         Assert.Equal("open", p.Threads[0].Status);
     }
+
+    [Fact]
+    public void Contribution_And_Judgment_PersistViaStore()
+    {
+        var store = new InMemoryStore();
+        var pid = Guid.NewGuid(); var tid = Guid.NewGuid(); var sid = Guid.NewGuid();
+        store.AddContribution(new Contribution(DateTimeOffset.UnixEpoch, pid, tid, sid, "task", 25, "Reshaped X"));
+        store.AddJudgment(new Judgment(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch, "{\"project\":\"Windows port\"}", "accepted"));
+        store.Save();
+        Assert.Equal(25, Assert.Single(store.Contributions).Minutes);
+        Assert.Equal("accepted", Assert.Single(store.Judgments).UserDecision);
+    }
 }
