@@ -1,5 +1,7 @@
 # src/ is its own independent git repo (Swift app code + history live there)
 src/
+# spine-m1 worktree of the src repo (lives here temporarily during M1 build)
+src-spine-m1/
 
 .DS_Store
 **/.DS_Store

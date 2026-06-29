@@ -1,9 +1,78 @@
 # AccountaBall — Progress Notes
-_Last updated: 2026-06-07 (v3.2 3-state redesign — Phase 1 BUILT; design fully approved)_
+_Last updated: 2026-06-24 (Context Spine M1 — data foundation: Tasks 1–5 built & reviewed, Task 5 mid-review)_
 
 > **How the whole app operates:** see [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md)
 > — the single end-to-end operational reference (lifecycle, monitoring loop,
 > 3-state model, drift engine, suppression mechanisms, data, providers, code map).
+
+---
+
+## Context Spine M1 — Data Foundation (IN PROGRESS)
+
+Building toward an accumulating context graph so AccountaBall can eventually
+**recall → suggest → act** on all the user's work (design goal: enough captured
+data to one day "do it for me / suggest things"). Applies to both FreeBall and
+task mode.
+
+- **Design (approved):** [`planning/plans/2026-06-24-accumulating-context-spine-design.md`](planning/plans/2026-06-24-accumulating-context-spine-design.md)
+  — Project→Thread→Contribution spine, unified full-OCR capture across both modes,
+  AI-proposes/user-confirms entity formation + a Judgment learning loop + per-project
+  trust ladder, and a reconstruction test to measure data sufficiency.
+- **M1 plan (data foundation, additive-only — no AI/UI/migration):**
+  [`planning/plans/2026-06-24-accumulating-context-spine-m1-implementation.md`](planning/plans/2026-06-24-accumulating-context-spine-m1-implementation.md)
+
+**Where the code lives:** the inner `src/` repo (`jecohub/AccountaBall-macOS`), in an
+isolated worktree at `../src-spine-m1` on branch **`spine-m1`** (branched from
+`src` master `1f5c3cb`). Subagent-driven (implementer + spec review + code-quality
+review per task). NOT yet merged to `src` master.
+
+**Done & reviewed (TDD, `make test` green at each step):**
+
+| Task | What | Commit | Tests |
+|---|---|---|---|
+| 1 | Shared `Capture` model (full OCR + mode/appHint/taskIndex/sessionId) + schema | `cf2f64b` | 388 |
+| 2 | `Project` + `Thread` (cascade) | `bee44cf` | 394 |
+| 3 | `Contribution` + `Judgment` (UUID soft-refs, not @Relationship) | `b9aba99` | 401 |
+| 4 | Stable `id: UUID` on `WorkSession` | `01156df` | 403 |
+| 5 | **Keystone:** task mode persists full OCR into `Capture` (de-duped like FreeBall) — stops discarding screen text | `c8cffa0` | 406 |
+
+All new entities registered in `AccountaBallStore` schema; `runSpineSchemaTests` +
+`CaptureIngestTests` cover round-trips, cascade-delete, and dedup (3 calls → 2 rows).
+
+Task 5's two code-quality findings were both fixed (clock → injectable `now()`;
+the full-table fetch → scoped single-row `#Predicate(sessionId) + sortBy lastSeenAt
+desc + fetchLimit 1`) and re-reviewed. Fix commit `b776f1e`, tests 408.
+
+**Final holistic review: READY TO MERGE** (`1f5c3cb..b776f1e`, no critical/blocking
+issues; all 6 design invariants honored; 408 green).
+
+**Resume here:**
+1. **Manual GUI smoke (needs the user)** — `make build && make run` in the worktree,
+   declare a task, work ~30s across a couple of screens, quit; confirm `Capture` rows
+   with `mode == "task"` accumulate + dedup. Can't be done headlessly (Screen
+   Recording permission + GUI). The unit test (`CaptureIngestTests`) already proves
+   the `ingestCapture` logic; this just confirms the live loop→OCR→store wiring.
+2. **Merge** `spine-m1` → `src` master (finishing-a-development-branch).
+
+**Deferred follow-ups (recorded, not blocking M1):**
+- **Index `Capture.sessionId` (+ `lastSeenAt`)** — `ingestCapture` queries by
+  `sessionId` every cycle over an unbounded table. NOT doable declaratively on the
+  macOS 14 floor: `@Attribute(.indexed)` doesn't exist at 14 and `#Index` is macOS
+  15+ (verified by compile test). Revisit when min target rises to 15, or mitigate
+  another way. The `fetchLimit 1` already bounds the result row count.
+- **For the M2 planner:** add `sessionId: UUID` to `Judgment` (so a capture-range
+  query can be session-scoped — additive, no rows exist yet); and note the
+  deliberate `Contribution.minutes: Int` vs `Capture.seconds: TimeInterval`
+  granularity (lossy rollup decided on purpose, not a bug).
+
+**Deferred to later milestones (NOT M1):** converge FreeBall onto the shared
+`Capture` (retire `FreeBallCapture`, needs migration); M2 entity resolution +
+confirm UI + Judgment logging; M3 recall; trust ladder + reconstruction test;
+encryption at rest + capture exclusions.
+
+> Note: the macOS `SessionBallView` allowance-confirm panel-size fix (compact
+> rounded card instead of full-panel black slab) is a separate uncommitted change
+> sitting on `src` master — unrelated to this branch.
 
 ---
 

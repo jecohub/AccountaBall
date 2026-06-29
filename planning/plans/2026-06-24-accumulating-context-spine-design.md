@@ -4,6 +4,19 @@
 **Status:** Approved (brainstorm complete; not yet planned for implementation)
 **Applies to:** Both platforms (macOS `src/`, Windows `windows/`). Cross-cutting data/context architecture.
 
+## BUILD PROGRESS
+
+- **M1 (data foundation) — built & reviewed on macOS** (`src` worktree branch
+  `spine-m1`, not yet merged). Tasks 1–5 done TDD + two-stage review: shared
+  `Capture` model, `Project`/`Thread` (cascade), `Contribution`/`Judgment` (UUID
+  soft-refs), `WorkSession.id`, and the keystone — **task mode now persists full
+  OCR into `Capture`, de-duped** (stops discarding screen text). `make test` green
+  at 408. See `progress.md` "Context Spine M1" for the commit/test table and resume
+  point. Remaining in M1: manual GUI smoke + final holistic review + merge.
+- **Later milestones not started:** FreeBall→`Capture` convergence, M2 (entity
+  resolution + confirm UI + Judgment logging), M3 (recall), trust ladder +
+  reconstruction test, encryption at rest.
+
 ## Purpose
 
 Turn AccountaBall from a per-session journal into a *continuously accumulating
