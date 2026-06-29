@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using AccountaBall.Core.Models;
 using AccountaBall.Core.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,30 @@ public sealed class SqliteStore : IStore, IDisposable
         _db.FreeBallSessions
             .Include(s => s.Captures)
             .ToList();
+
+    // ── Context spine (M1) ──────────────────────────────────────────────────
+    public void AddCapture(Capture capture) => _db.Captures.Add(capture);
+
+    public IReadOnlyList<Capture> Captures => _db.Captures.ToList();
+
+    public Capture? LatestCaptureForSession(Guid sessionId) =>
+        _db.Captures
+            .Where(c => c.SessionId == sessionId)
+            .OrderByDescending(c => c.LastSeenAt)
+            .FirstOrDefault();
+
+    public void AddProject(Project project) => _db.Projects.Add(project);
+
+    public IReadOnlyList<Project> Projects =>
+        _db.Projects.Include(p => p.Threads).ToList();
+
+    public void AddContribution(Contribution contribution) => _db.Contributions.Add(contribution);
+
+    public IReadOnlyList<Contribution> Contributions => _db.Contributions.ToList();
+
+    public void AddJudgment(Judgment judgment) => _db.Judgments.Add(judgment);
+
+    public IReadOnlyList<Judgment> Judgments => _db.Judgments.ToList();
 
     public void Save() => _db.SaveChanges();
 

@@ -140,6 +140,11 @@ public sealed class AppController : IShellActions
 
         App.Log($"cycle: window='{frame.WindowTitle}' ocrChars={text.Length} text[0..120]=\"{Truncate(text, 120)}\"");
 
+        // Context spine (M1): persist full OCR (de-duped) BEFORE classification, so
+        // the capture's TaskIndex reflects the prior cycle's result — matching the
+        // macOS keystone contract. Never blocks/affects classification.
+        _engine.IngestCapture(text, frame.WindowTitle);
+
         MultiTaskResult result;
         try
         {

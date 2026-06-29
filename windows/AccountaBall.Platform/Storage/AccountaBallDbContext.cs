@@ -16,6 +16,11 @@ public sealed class AccountaBallDbContext : DbContext
     public DbSet<WorkSession> Sessions => Set<WorkSession>();
     public DbSet<KnowledgeTask> KnowledgeTasks => Set<KnowledgeTask>();
     public DbSet<FreeBallSession> FreeBallSessions => Set<FreeBallSession>();
+    // Context-spine M1 (parity with macOS src master 332ce78).
+    public DbSet<Capture> Captures => Set<Capture>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<Contribution> Contributions => Set<Contribution>();
+    public DbSet<Judgment> Judgments => Set<Judgment>();
 
     public AccountaBallDbContext(DbContextOptions<AccountaBallDbContext> options) : base(options) { }
 
@@ -23,7 +28,7 @@ public sealed class AccountaBallDbContext : DbContext
     {
         b.Entity<WorkSession>(e =>
         {
-            ShadowKey(e);
+            e.HasKey(s => s.Id);                       // real Guid key (W4 — captures reference it by SessionId)
             e.Property(s => s.StartedAt);
             e.Property(s => s.EndedAt);
             e.PrimitiveCollection(s => s.TaskTitles);
@@ -108,6 +113,72 @@ public sealed class AccountaBallDbContext : DbContext
             e.Property(c => c.LastSeenAt);
             e.Property(c => c.Text);
             e.Ignore(c => c.Seconds);                  // computed (no setter); not persisted
+        });
+
+        // ── Context spine (M1) ──────────────────────────────────────────────
+        // Shared capture written by task mode (FreeBall still uses FreeBallCapture
+        // until convergence). Soft-referenced to its session by SessionId (no EF
+        // relationship) so it can later span WorkSession/FreeBallSession.
+        b.Entity<Capture>(e =>
+        {
+            e.HasKey(c => c.Id);                       // real Guid key
+            e.Property(c => c.FirstSeenAt);
+            e.Property(c => c.LastSeenAt);
+            e.Property(c => c.Text);
+            e.Property(c => c.Mode);
+            e.Property(c => c.AppHint);
+            e.Property(c => c.TaskIndex);
+            e.Property(c => c.SessionId);
+            e.Ignore(c => c.Seconds);                  // computed (no setter); not persisted
+            // IngestCapture queries WHERE SessionId = ? ORDER BY LastSeenAt DESC LIMIT 1.
+            e.HasIndex(c => new { c.SessionId, c.LastSeenAt });
+        });
+
+        b.Entity<Project>(e =>
+        {
+            e.HasKey(p => p.Id);                       // real Guid key
+            e.Property(p => p.Title);
+            e.Property(p => p.Status);
+            e.Property(p => p.CreatedAt);
+            e.Property(p => p.LastTouchedAt);
+            e.Property(p => p.Summary);
+            e.PrimitiveCollection(p => p.Aliases);     // List<string> → JSON
+            e.PrimitiveCollection(p => p.People);
+            e.PrimitiveCollection(p => p.CodeContext);
+            e.PrimitiveCollection(p => p.Refs);
+            e.HasMany(p => p.Threads).WithOne().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Thread>(e =>
+        {
+            e.HasKey(t => t.Id);                       // real Guid key
+            e.Property(t => t.Title);
+            e.Property(t => t.Status);
+            e.Property(t => t.OpenedAt);
+            e.Property(t => t.ResolvedAt);
+        });
+
+        // Contribution/Judgment link by Guid soft-ref (no navigation properties).
+        b.Entity<Contribution>(e =>
+        {
+            e.HasKey(c => c.Id);                       // real Guid key
+            e.Property(c => c.At);
+            e.Property(c => c.ProjectId);
+            e.Property(c => c.ThreadId);
+            e.Property(c => c.SessionId);
+            e.Property(c => c.SessionKind);
+            e.Property(c => c.Minutes);
+            e.Property(c => c.Summary);
+        });
+
+        b.Entity<Judgment>(e =>
+        {
+            e.HasKey(j => j.Id);                       // real Guid key
+            e.Property(j => j.At);
+            e.Property(j => j.CaptureRangeStart);
+            e.Property(j => j.CaptureRangeEnd);
+            e.Property(j => j.ModelProposal);
+            e.Property(j => j.UserDecision);
         });
     }
 
