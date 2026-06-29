@@ -22,6 +22,8 @@ public interface IStore
     void AddCapture(Capture capture);
     IReadOnlyList<Capture> Captures { get; }
     Capture? LatestCaptureForSession(Guid sessionId);
+    void AddProject(Project project);
+    IReadOnlyList<Project> Projects { get; }
     void Save();
 }
 
@@ -50,6 +52,10 @@ public sealed class InMemoryStore : IStore
     public Capture? LatestCaptureForSession(Guid sessionId) =>
         _captures.Where(c => c.SessionId == sessionId)
                  .OrderByDescending(c => c.LastSeenAt).FirstOrDefault();
+
+    private readonly List<Project> _projects = new();
+    public void AddProject(Project project) => _projects.Add(project);
+    public IReadOnlyList<Project> Projects => _projects;
 
     public void Save() { /* in-memory: relationship lists are the source of truth */ }
 
