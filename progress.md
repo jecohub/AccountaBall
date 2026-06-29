@@ -71,8 +71,39 @@ confirm UI + Judgment logging; M3 recall; trust ladder + reconstruction test;
 encryption at rest + capture exclusions.
 
 > Note: the macOS `SessionBallView` allowance-confirm panel-size fix (compact
-> rounded card instead of full-panel black slab) is a separate uncommitted change
-> sitting on `src` master — unrelated to this branch.
+> rounded card instead of full-panel black slab) shipped separately on `src`
+> master (`332ce78`, pushed).
+
+### Windows port of M1 — built (Core verified, W6 needs a Windows compile)
+
+Ported to the C#/.NET Windows port to keep it at parity. Plan:
+[`planning/plans/2026-06-24-windows-spine-m1-port-implementation.md`](planning/plans/2026-06-24-windows-spine-m1-port-implementation.md).
+On branch `windows-port-m3-m4` (this repo), subagent-driven + reviewed per task.
+**Committed locally, not pushed.**
+
+- **W1–W5 (`AccountaBall.Core`, net8.0):** built **and tested on macOS** —
+  `dotnet test windows/AccountaBall.Core.Tests` = **118 green**. Adds POCOs
+  `Capture`/`Project`/`Thread`/`Contribution`/`Judgment`, the `IStore` capture/
+  spine methods + `InMemoryStore` impls, `WorkSession.Id`, and the keystone
+  `AccountabilityEngine.IngestCapture` (de-dup via `FreeBallDedup`, injectable
+  `Now`, scoped `LatestCaptureForSession`). Final review: ready to merge.
+- **W6 (`AccountaBall.Platform` + `.App`, net8.0-windows):** **written but NOT
+  compiled** (can't build Windows targets on the macOS box). `AccountaBallDbContext`
+  DbSets + EF config (Capture indexed on `(SessionId, LastSeenAt)`; WorkSession key
+  → its new Guid); `SqliteStore` EF-backed `IStore` impls; `AppController` calls
+  `IngestCapture(text, frame.WindowTitle)` after OCR, before classify.
+
+**Resume on a Windows machine:**
+1. `dotnet build windows/AccountaBall.sln` (0 errors) + `dotnet test windows/AccountaBall.Core.Tests`.
+2. **Delete any existing dev DB** (`%LOCALAPPDATA%\AccountaBall\accountaball.db`) —
+   `EnsureCreated` does NOT migrate in place, so a stale DB silently lacks the new
+   tables + Guid key and would fail late on first `Captures` access.
+3. Run the app, declare a task, work ~30s across a couple of windows; confirm
+   `Capture` rows with `Mode=="task"` accumulate + dedup.
+4. (Recommended, from final review) add ONE Windows-only SqliteStore integration
+   test: a 2nd `IngestCapture` of the same screen extends `LastSeenAt` (UPDATE, not
+   a 2nd row) — the change-tracking-dependent extend branch is unexercised by the
+   Core/InMemoryStore tests.
 
 ---
 

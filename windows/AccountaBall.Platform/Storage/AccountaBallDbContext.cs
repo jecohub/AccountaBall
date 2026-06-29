@@ -7,9 +7,13 @@ namespace AccountaBall.Platform.Storage;
 /// The POCOs live in Core and carry no EF annotations or key properties — by
 /// design, Core stays persistence-agnostic — so every key, relationship, and
 /// collection is configured here via the Fluent API:
-///   * shadow integer primary keys for the keyless entities;
+///   * shadow integer primary keys for keyless entities; real Guid keys for
+///     entities that carry an `Id` (KnowledgeTask, FreeBallSession, WorkSession,
+///     and the M1 spine entities Capture / Project / Thread / Contribution /
+///     Judgment);
 ///   * EF Core 8 primitive-collection mapping for the `List&lt;string&gt;`
-///     properties (TaskTitles / OriginalTitles / Steps), stored as JSON;
+///     properties (TaskTitles / OriginalTitles / Steps; Project's Aliases /
+///     People / CodeContext / Refs), stored as JSON;
 ///   * owned cascade children via the get-only navigation collections.
 public sealed class AccountaBallDbContext : DbContext
 {
