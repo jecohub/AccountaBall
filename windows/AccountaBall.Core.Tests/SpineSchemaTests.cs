@@ -55,4 +55,13 @@ public class SpineSchemaTests
         Assert.Equal(25, Assert.Single(store.Contributions).Minutes);
         Assert.Equal("accepted", Assert.Single(store.Judgments).UserDecision);
     }
+
+    [Fact]
+    public void WorkSession_HasStableDistinctIds()
+    {
+        var a = new WorkSession(DateTimeOffset.UnixEpoch);
+        var b = new WorkSession(DateTimeOffset.UnixEpoch);
+        Assert.NotEqual(Guid.Empty, a.Id);
+        Assert.NotEqual(a.Id, b.Id);
+    }
 }

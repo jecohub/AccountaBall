@@ -12,6 +12,7 @@ namespace AccountaBall.Core.Models;
 /// One focus session. `Entries` and `Justifications` are owned (cascade) children.
 public sealed class WorkSession
 {
+    public Guid Id { get; set; } = Guid.NewGuid();   // stable id for cross-session links (captures/contributions)
     public DateTimeOffset StartedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }
     public List<TimelineEntry> Entries { get; } = new();
