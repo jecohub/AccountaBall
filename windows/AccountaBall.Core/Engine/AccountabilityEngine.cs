@@ -42,6 +42,12 @@ public sealed class AccountabilityEngine
     private DateTimeOffset _graceUntil = DateTimeOffset.MinValue;
     private DateTimeOffset _breakUntil = DateTimeOffset.MinValue;
     private readonly HashSet<string> _askedActivities = new();
+
+    // Tasks the user vouched for this session by accepting an ambiguous ask. Later
+    // AMBIGUOUS reads attributed to a vouched task are treated as on-task instead of
+    // re-asking — the AI's per-screen label varies, so exact-label ask-once isn't
+    // enough; the user vouched the task, not one label. Reset per session.
+    private readonly HashSet<int> _vouchedTaskIndices = new();
     private AppPhase _phaseBeforeUnavailable = AppPhase.Session;
 
     public WorkSession? CurrentSession { get; private set; }
@@ -111,6 +117,7 @@ public sealed class AccountabilityEngine
         store.Save();
         CurrentSession = session;
         _askedActivities.Clear();
+        _vouchedTaskIndices.Clear();
         ClearOffTaskStreak();
         ResetSettleWindow();
     }
@@ -320,6 +327,20 @@ public sealed class AccountabilityEngine
 
             case MultiTaskResult.Ambiguous amb:
                 LastActivityLabel = amb.Label;
+                // Vouched task: user already confirmed this task's work can look
+                // ambiguous — treat "can't tell" reads as on-task for it, don't
+                // re-ask for every new per-screen label the model invents.
+                var vouchIdx = _state.Tasks.FindIndex(t => !t.IsComplete);
+                if (vouchIdx >= 0 && _vouchedTaskIndices.Contains(vouchIdx))
+                {
+                    Record(vouchIdx, amb.Label);
+                    _suspicionCount = 0;
+                    ClearOffTaskStreak();
+                    _state.ActiveTaskIndex = vouchIdx;
+                    _state.BallState = BallState.OnTask;
+                    CreditTime(vouchIdx);
+                    break;
+                }
                 Record(null, amb.Label);
                 _suspicionCount = 0;                 // ambiguous is not a confirmed drift
                 ClearOffTaskStreak();
@@ -407,7 +428,11 @@ public sealed class AccountabilityEngine
         var idx = _state.Tasks.FindIndex(t => !t.IsComplete);
         if (idx >= 0) taskIndex = idx;
         LogCheck("ambiguous", justified: true, activity: label, excuse: reason, rule: rule, taskIndex: taskIndex);
-        if (taskIndex is { } ti) CreateAllowance(rule, ti);
+        if (taskIndex is { } ti)
+        {
+            CreateAllowance(rule, ti);
+            _vouchedTaskIndices.Add(ti);   // stop nagging on this task's ambiguous reads
+        }
         ResumeAfterExcuse();
     }
 

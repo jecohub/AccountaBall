@@ -55,6 +55,23 @@ public class EngineAmbiguousTests
         Assert.Contains("budget for the deck", rules[0]);
         Assert.Equal(AppPhase.Session, state.AppPhase);
     }
+
+    // Vouch the task: after accepting once, a DIFFERENT ambiguous label attributed
+    // to the same still-incomplete task is not re-asked (treated as on-task). The
+    // AI's per-screen label varies, so exact-label ask-once isn't enough.
+    [Fact]
+    public void VouchedTask_NewAmbiguousLabel_NotReAsked_TreatedOnTask()
+    {
+        var (state, engine, _) = EngineTest.MakeWithSession(null, "build the deck");
+        engine.ResetSettleWindowToPast();
+        engine.ProcessResult(new MultiTaskResult.Ambiguous("Excel budget sheet"));
+        engine.AcceptAmbiguous("budget for the deck");   // vouches task 0
+        engine.ResetSettleWindowToPast();
+        Assert.Equal(AppPhase.Session, state.AppPhase);
+        engine.ProcessResult(new MultiTaskResult.Ambiguous("a totally different-looking slide draft"));
+        Assert.Equal(AppPhase.Session, state.AppPhase);   // not re-asked
+        Assert.Equal(0, state.ActiveTaskIndex);           // treated as on-task for the vouched task
+    }
 }
 
 public class EngineTimedBreakTests
